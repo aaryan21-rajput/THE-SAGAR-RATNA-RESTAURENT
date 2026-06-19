@@ -1646,6 +1646,122 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </button>
                 </form>
 
+                {/* Supabase connection dashboard */}
+                <div id="supabase-control-panel-card" className="bg-white border border-[#aa7c11]/25 rounded-2xl p-6 space-y-4 shadow-sm relative overflow-hidden text-left">
+                  <div className="absolute top-0 right-0 bg-[#aa7c11]/10 text-[#aa7c11] text-[8px] font-mono uppercase font-black px-3 py-1 rounded-bl-xl border-l border-b border-[#aa7c11]/20">
+                    Active Bridge
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                      <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                        <path d="M21.35 11.1h-9.17l5.12-10.07A.62.62 0 0 0 16.75 0h-9.5a.62.62 0 0 0-.58.39L2.65 11.9a.62.62 0 0 0 .58.85h9.12l-5.1 10.13a.62.62 0 0 0 .55.9h9.5a.62.62 0 0 0 .58-.39l4.02-11.41a.62.62 0 0 0-.55-.88z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-serif font-bold text-stone-900 uppercase tracking-wider">Supabase Integration Panel</h3>
+                      <p className="text-[10px] text-stone-400 font-sans">Automated Order Booking Relay (Server-Side Proxy Client)</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
+                    <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-1">
+                      <span className="text-[9px] font-mono font-bold text-stone-400 uppercase block tracking-wider">SUPABASE ENDPOINT URL</span>
+                      <code className="text-[10px] font-mono text-[#aa7c11] break-all select-all font-semibold">https://xykdbtebmjzapaozsggl.supabase.co</code>
+                    </div>
+                    <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-1">
+                      <span className="text-[9px] font-mono font-bold text-stone-400 uppercase block tracking-wider">PUBLIC API ACCESS KEY</span>
+                      <code className="text-[10px] font-mono text-stone-600 break-all select-all font-semibold">sb_publishable_MbOmjXCRkgLRdic8YE-8ng...</code>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-sans font-bold text-stone-500 uppercase tracking-widest">PostgreSQL Schema Installation Script</h4>
+                      <span className="text-[9px] font-mono text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-sm">SQL Editor Safe</span>
+                    </div>
+                    <p className="text-[10px] text-stone-500 font-sans leading-relaxed">
+                      Paste this script into your **Supabase → SQL Editor** to construct the target <code className="font-mono text-stone-900 bg-stone-100 px-1 py-0.5 rounded text-[9px]">orders</code> table. When customers book orders, details synchronize in real-time.
+                    </p>
+                    <div className="relative group">
+                      <pre className="text-[9px] font-mono text-stone-700 bg-stone-900 text-stone-100 p-4 rounded-xl overflow-x-auto max-h-48 shadow-inner select-all leading-tight">
+{`CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  customer_name TEXT,
+  phone_number TEXT,
+  email TEXT,
+  order_type TEXT,
+  table_number TEXT,
+  address TEXT,
+  items JSONB,
+  subtotal NUMERIC,
+  gst NUMERIC,
+  packaging_charge NUMERIC,
+  discount_amount NUMERIC,
+  applied_coupon TEXT,
+  grand_total NUMERIC,
+  payment_status TEXT,
+  order_status TEXT,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  payment_method TEXT
+);
+
+-- Reset RLS restrictions for testing
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Insert policy for anonymous orders" ON orders;
+CREATE POLICY "Insert policy for anonymous orders" ON orders 
+  FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Select policy for anonymous orders" ON orders;
+CREATE POLICY "Select policy for anonymous orders" ON orders 
+  FOR SELECT USING (true);`}
+                      </pre>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const sqlCode = `CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  customer_name TEXT,
+  phone_number TEXT,
+  email TEXT,
+  order_type TEXT,
+  table_number TEXT,
+  address TEXT,
+  items JSONB,
+  subtotal NUMERIC,
+  gst NUMERIC,
+  packaging_charge NUMERIC,
+  discount_amount NUMERIC,
+  applied_coupon TEXT,
+  grand_total NUMERIC,
+  payment_status TEXT,
+  order_status TEXT,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  payment_method TEXT
+);
+
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Insert policy for anonymous orders" ON orders;
+CREATE POLICY "Insert policy for anonymous orders" ON orders FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Select policy for anonymous orders" ON orders;
+CREATE POLICY "Select policy for anonymous orders" ON orders FOR SELECT USING (true);`;
+                          navigator.clipboard.writeText(sqlCode);
+                          alert("SQL schema copied to clipboard! Paste it into your Supabase SQL Editor.");
+                        }}
+                        className="absolute right-3 top-3 bg-stone-800 hover:bg-stone-700 hover:scale-105 active:scale-95 text-[9px] font-bold font-mono px-2 py-1 text-stone-200 rounded border border-stone-750 cursor-pointer shadow-sm transition-all"
+                      >
+                        Copy SQL
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 items-start mt-2 p-3 bg-blue-50 border border-blue-100 rounded-xl leading-normal text-[10px] text-blue-800">
+                    <span className="text-sm">💡</span>
+                    <div>
+                      <strong>How to check connection logs:</strong> If synchronization fails or times out, detailed reports are written instantly to the <strong className="cursor-pointer underline font-bold" onClick={() => setActiveTab("logs")}>Audit Logs Ledger</strong> tab. You don't have to keep terminal logs open to verify!
+                    </div>
+                  </div>
+                </div>
+
               </motion.div>
             )}
 

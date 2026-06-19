@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -135,6 +136,112 @@ function writeDb(data: any) {
   }
 }
 
+// Supabase cloud synchronization engine
+async function syncOrderToSupabase(order: any, isUpdate = false) {
+  const supabaseUrl = process.env.SUPABASE_URL || "https://xykdbtebmjzapaozsggl.supabase.co";
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || "sb_publishable_MbOmjXCRkgLRdic8YE-8ng_RyBIkI7G";
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn("[Supabase] Configuration is absent. Skipping cloud ledger write.");
+    return;
+  }
+
+  // Map the application's React/Node schema into standard PostgreSQL lower snake_case schema columns
+  const payload = {
+    id: order.id,
+    customer_name: order.customerName,
+    phone_number: order.phoneNumber,
+    email: order.email,
+    order_type: order.orderType,
+    table_number: order.tableNumber || null,
+    address: order.address || null,
+    items: order.items, // PostgREST handles objects/arrays for JSONB columns automatically
+    subtotal: Number(order.subtotal || 0),
+    gst: Number(order.gst || 0),
+    packaging_charge: Number(order.packagingCharge || 0),
+    discount_amount: Number(order.discountAmount || 0),
+    applied_coupon: order.appliedCoupon || null,
+    grand_total: Number(order.grandTotal || 0),
+    payment_status: order.paymentStatus || "Pending",
+    order_status: order.orderStatus || "New Order",
+    created_at: order.createdAt || new Date().toISOString(),
+    payment_method: order.paymentMethod || "Cash on Delivery"
+  };
+
+  const url = isUpdate 
+    ? `${supabaseUrl}/rest/v1/orders?id=eq.${encodeURIComponent(order.id)}`
+    : `${supabaseUrl}/rest/v1/orders`;
+
+  const method = isUpdate ? "PATCH" : "POST";
+
+  try {
+    const response = await fetch(url, {
+      method: method,
+      headers: {
+        "apikey": supabaseKey,
+        "Authorization": `Bearer ${supabaseKey}`,
+        "Content-Type": "application/json",
+        "Prefer": isUpdate ? "return=minimal" : "return=representation"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Supabase PostgREST Error] HTTP ${response.status}: ${errorText}`);
+      
+      // Post a system warning in application's local audit logs
+      try {
+        const db = readDb();
+        db.auditLogs.unshift({
+          id: `log-sb-err-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          user: "System (Supabase)",
+          action: "Supabase Sync Failure",
+          details: `PostgREST API returned Status ${response.status}: ${errorText.substring(0, 150)}. Check if 'orders' table exists in dashboard with exact column schemas.`,
+          ipAddress: "127.0.0.1"
+        });
+        writeDb(db);
+      } catch (logErr) {
+        console.error("Failed to update error logs in local memory store:", logErr);
+      }
+    } else {
+      console.log(`[Supabase Integration] Successfully database synced Order ${order.id} via ${method}`);
+      // Post a system success marker inside the application audit logs
+      try {
+        const db = readDb();
+        db.auditLogs.unshift({
+          id: `log-sb-ok-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          user: "System (Supabase)",
+          action: "Supabase Sync Success",
+          details: `Order reference ${order.id} successfully synchronized to Supabase PostgreSQL cloud via ${method}.`,
+          ipAddress: "127.0.0.1"
+        });
+        writeDb(db);
+      } catch (logErr) {
+        console.error("Failed to commit success logs in local memory store:", logErr);
+      }
+    }
+  } catch (err: any) {
+    console.error("[Supabase Transport Network Error]", err);
+    try {
+      const db = readDb();
+      db.auditLogs.unshift({
+        id: `log-sb-conn-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        user: "System (Supabase)",
+        action: "Supabase Connection Error",
+        details: `Failed to open TCP transport link: ${err.message || err.toString()}`,
+        ipAddress: "127.0.0.1"
+      });
+      writeDb(db);
+    } catch (logErr) {
+      console.error("Failed to register transport error log:", logErr);
+    }
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -206,6 +313,11 @@ async function startServer() {
       db.orders.unshift(newOrder); // New order on top
       writeDb(db);
 
+      // Trigger asynchronous Supabase synchronization in the background to ensure blazing fast checkout
+      syncOrderToSupabase(newOrder, false).catch(e => {
+        console.error("Critical: Supabase background sync failed to invoke", e);
+      });
+
       res.status(201).json({ status: "success", order: newOrder });
     } catch (err) {
       console.error("Failed to store client order:", err);
@@ -253,6 +365,12 @@ async function startServer() {
     });
 
     writeDb(db);
+
+    // Trigger asynchronous Supabase update status sync in the background
+    syncOrderToSupabase(db.orders[idx], true).catch(e => {
+      console.error("Critical: Supabase background update status sync failed to invoke", e);
+    });
+
     res.json({ success: true, order: db.orders[idx] });
   });
 
