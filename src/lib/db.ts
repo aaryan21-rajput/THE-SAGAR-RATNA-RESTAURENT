@@ -1,5 +1,18 @@
 import { MenuItem, Review } from "../types";
 import { menuItems as defaultMenuItems, reviews as defaultReviews } from "../data";
+import { createClient } from "@supabase/supabase-js";
+
+// Load configuration with broad support for multiple environments
+const anyMeta = import.meta as any;
+const supabaseUrl = anyMeta.env?.VITE_SUPABASE_URL || 
+                    anyMeta.env?.NEXT_PUBLIC_SUPABASE_URL || 
+                    "https://xykdbtebmjzapaozsggl.supabase.co";
+
+const supabaseKey = anyMeta.env?.VITE_SUPABASE_ANON_KEY || 
+                    anyMeta.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+                    "sb_publishable_MbOmjXCRkgLRdic8YE-8ng_RyBIkI7G";
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export interface Order {
   id: string;
@@ -25,6 +38,7 @@ export interface Order {
   paymentStatus: "Pending" | "Paid" | "Failed";
   orderStatus: "New Order" | "Accepted" | "Preparing" | "Ready" | "Out For Delivery" | "Delivered" | "Cancelled";
   createdAt: string; // ISO string or date
+  paymentMethod?: string;
 }
 
 export interface Coupon {
@@ -374,7 +388,7 @@ export class LocalDB {
     localStorage.setItem("sr_audit_logs", JSON.stringify(logs));
   }
 
-  // --- FULL HARDENED FULL-STACK SYNCHRONIZATION APIS ---
+  // --- SUPABASE DIRECT INTEGRATION CODES & BACKENDS ---
   
   static getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem("sr_admin_jwt") || sessionStorage.getItem("sr_admin_jwt");
@@ -386,173 +400,571 @@ export class LocalDB {
   }
 
   static async fetchOrders(): Promise<Order[]> {
-    const res = await fetch("/api/orders", { headers: this.getAuthHeaders() });
-    if (!res.ok) throw new Error("Unauthorized orders retrieval check.");
-    const data = await res.json();
-    this.saveOrders(data);
-    return data;
+    console.log("[Supabase API Request] Loading orders list...");
+    try {
+      const { data, error, status } = await supabase
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("[Supabase API Error] Orders fetch failed:", error);
+        this.addAuditLog(
+          "Supabase API Error",
+          `HTTP ${status} - Failed to fetch orders from Supabase REST endpoint: ${error.message} (${error.details}). Check if 'orders' table exists in dashboard. Falling back to local ledger cache.`,
+          "System (Supabase)"
+        );
+        return this.getOrders();
+      }
+
+      console.log("[Supabase API Response] Successfully fetched orders:", data);
+
+      // Translate snake_case keys back to client camelCase
+      const mapped: Order[] = (data || []).map((item: any) => ({
+        id: item.id,
+        customerName: item.customer_name || "Guest User",
+        phoneNumber: item.phone_number || "",
+        email: item.email || "",
+        orderType: item.order_type || "takeaway",
+        tableNumber: item.table_number || undefined,
+        address: item.address || undefined,
+        items: Array.isArray(item.items) ? item.items : (typeof item.items === 'string' ? JSON.parse(item.items) : []),
+        subtotal: Number(item.subtotal || 0),
+        gst: Number(item.gst || 0),
+        packagingCharge: Number(item.packaging_charge || 0),
+        discountAmount: Number(item.discount_amount || 0),
+        appliedCoupon: item.applied_coupon || undefined,
+        grandTotal: Number(item.grand_total || 0),
+        paymentStatus: item.payment_status || "Pending",
+        orderStatus: item.order_status || "New Order",
+        createdAt: item.created_at || new Date().toISOString(),
+        paymentMethod: item.payment_method || "Cash on Delivery"
+      }));
+
+      this.saveOrders(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.error("[Supabase Transport Error] Failed to contact rest endpoint:", err);
+      this.addAuditLog(
+        "Supabase Bridge Offline",
+        `Transport link offline: ${err.message || err.toString()}. Reading orders offline from local disk cache.`,
+        "System (Offline)"
+      );
+      return this.getOrders();
+    }
   }
 
   static async apiAddOrder(order: Omit<Order, "id" | "createdAt">): Promise<Order> {
-    const res = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(order)
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "Failed to submit order to restaurant database.");
-    }
-    const result = await res.ok ? await res.json() : {};
-    if (!result.order) throw new Error("Malformed server order response.");
-    
-    // Merge into local cache
-    const current = this.getOrders();
-    if (!current.some(o => o.id === result.order.id)) {
-      current.unshift(result.order);
-      this.saveOrders(current);
-    }
-    
-    // Dispatch local notification event on current tab
-    const event = new CustomEvent("new_order", { detail: result.order });
-    window.dispatchEvent(event);
+    const orders = this.getOrders();
+    const newId = `SR-${1000 + orders.length + Math.floor(Math.random() * 100)}`;
+    const fullOrder: Order = {
+      ...order,
+      id: newId,
+      createdAt: new Date().toISOString()
+    };
 
-    return result.order;
+    const payload = {
+      id: fullOrder.id,
+      customer_name: fullOrder.customerName,
+      phone_number: fullOrder.phoneNumber,
+      email: fullOrder.email,
+      order_type: fullOrder.orderType,
+      table_number: fullOrder.tableNumber || null,
+      address: fullOrder.address || null,
+      items: fullOrder.items,
+      subtotal: Number(fullOrder.subtotal || 0),
+      gst: Number(fullOrder.gst || 0),
+      packaging_charge: Number(fullOrder.packagingCharge || 0),
+      discount_amount: Number(fullOrder.discountAmount || 0),
+      applied_coupon: fullOrder.appliedCoupon || null,
+      grand_total: Number(fullOrder.grandTotal || 0),
+      payment_status: fullOrder.paymentStatus || "Pending",
+      order_status: fullOrder.orderStatus || "New Order",
+      created_at: fullOrder.createdAt,
+      payment_method: fullOrder.paymentMethod || "Cash on Delivery"
+    };
+
+    console.log("[Supabase API POST Payload] Submitting new order:", payload);
+
+    try {
+      const { error, status } = await supabase
+        .from("orders")
+        .insert(payload);
+
+      if (error) {
+        console.error("[Supabase API Error] Failed to submit order payload:", error);
+        this.addAuditLog(
+          "Supabase Sync Failed",
+          `HTTP ${status} - Error placing order on remote database: ${error.message}. Please create the 'orders' table in Supabase. Details: ${error.details || 'None'}`,
+          "System"
+        );
+        throw new Error(`Supabase post insertion failure: ${error.message} (${error.details || 'Check details in table schemas'})`);
+      }
+
+      console.log(`[Supabase API POST Success] Order ${newId} synchronized in cloud ledger.`);
+      this.addAuditLog(
+        "Supabase Sync Success",
+        `Order reference ${newId} with total ₹${fullOrder.grandTotal} stored inside cloud database successfully.`,
+        "System"
+      );
+
+      // Play audio ring
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12); // A5
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+      } catch (e) {}
+
+      // Prepend and save locally
+      const current = this.getOrders();
+      current.unshift(fullOrder);
+      this.saveOrders(current);
+
+      // Notify other live tabs
+      const event = new CustomEvent("new_order", { detail: fullOrder });
+      window.dispatchEvent(event);
+
+      return fullOrder;
+    } catch (err: any) {
+      console.error("[Order Relay Exception]", err);
+      // Let's fallback to local saving if connection fails, so order is not fully lost for current user!
+      const current = this.getOrders();
+      current.unshift(fullOrder);
+      this.saveOrders(current);
+      
+      const event = new CustomEvent("new_order", { detail: fullOrder });
+      window.dispatchEvent(event);
+
+      // Re-throw so frontend displays exact error
+      throw err;
+    }
   }
 
   static async apiUpdateOrderStatus(orderId: string, status: Order["orderStatus"], paymentStatus?: string): Promise<Order> {
-    const res = await fetch(`/api/orders/${orderId}/status`, {
-      method: "PUT",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify({ orderStatus: status, paymentStatus })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "Failed to update order status inside database.");
+    console.log(`[Supabase API PATCH Payload] Updating Order ${orderId}:`, { status, paymentStatus });
+    try {
+      const updatePayload: any = { order_status: status };
+      if (paymentStatus) {
+        updatePayload.payment_status = paymentStatus;
+      }
+
+      const { error, status: httpStatus } = await supabase
+        .from("orders")
+        .update(updatePayload)
+        .eq("id", orderId);
+
+      if (error) {
+        console.error("[Supabase API Error] Order update failed:", error);
+        this.addAuditLog(
+          "Supabase Action Failed",
+          `HTTP ${httpStatus} - Failed to update order status: ${error.message}`,
+          "Admin (owner)"
+        );
+        throw new Error(`Supabase update failure: ${error.message}`);
+      }
+
+      console.log(`[Supabase API PATCH Success] Order ${orderId} updated.`);
+      
+      // Update in local array
+      const current = this.getOrders();
+      const idx = current.findIndex(o => o.id === orderId);
+      if (idx !== -1) {
+        current[idx].orderStatus = status;
+        if (paymentStatus) {
+          current[idx].paymentStatus = paymentStatus as any;
+        }
+        this.saveOrders(current);
+      }
+
+      return current[idx] || { id: orderId, orderStatus: status, paymentStatus: paymentStatus } as any;
+    } catch (err: any) {
+      console.error("[Order Status Relay Exception]", err);
+      throw err;
     }
-    const result = await res.json();
-    
-    // Reload local orders state
-    await this.fetchOrders();
-    return result.order;
   }
 
   static async fetchMenuItems(): Promise<MenuItem[]> {
-    const res = await fetch("/api/menu-items");
-    if (!res.ok) throw new Error("Failed to load menu catalog.");
-    const data = await res.json();
-    this.saveMenuItems(data);
-    return data;
+    console.log("[Supabase API Request] Loading menus list...");
+    try {
+      const { data, error, status } = await supabase
+        .from("menu_items")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.error("[Supabase API Error] Menu catalog load failed:", error);
+        this.addAuditLog(
+          "Catalog Sync Error",
+          `HTTP ${status} - Failed to fetch menu catalog from Supabase REST endpoint: ${error.message}. Please create the 'menu_items' table. Falling back to offline defaults.`,
+          "System (Supabase)"
+        );
+        return this.getMenuItems();
+      }
+
+      console.log("[Supabase API Response] Successfully fetched menus:", data);
+
+      const mapped: MenuItem[] = (data || []).map((item: any) => ({
+        id: item.id || `item-${Date.now()}-${Math.random()}`,
+        name: item.name || "Unnamed Item",
+        price: Number(item.price || 0),
+        category: item.category || "Other",
+        description: item.description || "",
+        isVeg: item.is_veg !== undefined ? item.is_veg : true,
+        isBestseller: item.is_bestseller || false,
+        isChefSpecial: item.is_chef_special || false,
+        image: item.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500",
+        spiciness: Number(item.spiciness || 0),
+        rating: Number(item.rating || 4.5),
+        ratingCount: Number(item.rating_count || 10)
+      }));
+
+      this.saveMenuItems(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.error("[Menu Transport Sync Error]", err);
+      return this.getMenuItems();
+    }
   }
 
   static async apiSaveMenuItems(items: MenuItem[]): Promise<void> {
-    const res = await fetch("/api/menu-items", {
-      method: "PUT",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(items)
-    });
-    if (!res.ok) throw new Error("Failed to preserve updated menu list.");
-    this.saveMenuItems(items);
+    const payload = items.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: Number(item.price || 0),
+      category: item.category,
+      description: item.description,
+      is_veg: item.isVeg,
+      is_bestseller: !!item.isBestseller,
+      is_chef_special: !!item.isChefSpecial,
+      image: item.image,
+      spiciness: Number(item.spiciness || 0),
+      rating: Number(item.rating || 4.5),
+      rating_count: Number(item.ratingCount || 10)
+    }));
+
+    console.log("[Supabase API UPSERT] Uploading full menu items list:", payload);
+
+    try {
+      // Direct upsert to remote database
+      const { error, status } = await supabase
+        .from("menu_items")
+        .upsert(payload);
+
+      if (error) {
+        console.error("[Supabase Menu Update failed]", error);
+        this.addAuditLog(
+          "Menu Sync Failed",
+          `HTTP ${status} - Error saving menus in Supabase cloud: ${error.message}. Details: ${error.details}`,
+          "Admin (owner)"
+        );
+        throw new Error(`Supabase Upsert fails: ${error.message} (${error.details || 'Check constraints'})`);
+      }
+
+      console.log("[Supabase API UPSERT Success] Menu database synced catalog successfully.");
+      this.saveMenuItems(items);
+      this.addAuditLog("Menu Catalog Saved", `Catalog containing ${items.length} dishes updated inside Supabase and local disk.`, "Admin (owner)");
+    } catch (err: any) {
+      console.error("[Menu Sync Exception]", err);
+      this.saveMenuItems(items);
+      throw err;
+    }
   }
 
   static async fetchInventory(): Promise<InventoryItem[]> {
-    const res = await fetch("/api/inventory", { headers: this.getAuthHeaders() });
-    if (!res.ok) throw new Error("Failed to fetch stock reports.");
-    const data = await res.json();
-    this.saveInventory(data);
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from("inventory")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.warn("[Supabase] inventory missing. Falling back to local storage.", error);
+        return this.getInventory();
+      }
+
+      const mapped: InventoryItem[] = (data || []).map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        stock: Number(item.stock || 0),
+        unit: item.unit || "kg",
+        minAlertLevel: Number(item.min_alert_level || 10),
+        category: item.category || "Other",
+        lastRestocked: item.last_restocked || new Date().toISOString().split("T")[0]
+      }));
+
+      this.saveInventory(mapped);
+      return mapped;
+    } catch {
+      return this.getInventory();
+    }
   }
 
   static async apiSaveInventory(inventory: InventoryItem[]): Promise<void> {
-    const res = await fetch("/api/inventory", {
-      method: "PUT",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(inventory)
-    });
-    if (!res.ok) throw new Error("Failed to record inventory change.");
-    this.saveInventory(inventory);
+    const payload = inventory.map(item => ({
+      id: item.id,
+      name: item.name,
+      stock: Number(item.stock || 0),
+      unit: item.unit,
+      min_alert_level: Number(item.minAlertLevel || 10),
+      category: item.category,
+      last_restocked: item.lastRestocked
+    }));
+
+    try {
+      const { error } = await supabase.from("inventory").upsert(payload);
+      if (error) throw error;
+      this.saveInventory(inventory);
+    } catch (err) {
+      console.error("[Supabase Inventory Sync Failed]", err);
+      this.saveInventory(inventory);
+    }
   }
 
   static async fetchCoupons(): Promise<Coupon[]> {
-    const res = await fetch("/api/coupons");
-    if (!res.ok) throw new Error("Failed to synchronize coupon ledger.");
-    const data = await res.json();
-    this.saveCoupons(data);
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from("coupons")
+        .select("*")
+        .order("code", { ascending: true });
+
+      if (error) {
+        console.warn("[Supabase] 'coupons' table missing. Using client defaults.", error);
+        return this.getCoupons();
+      }
+
+      const mapped: Coupon[] = (data || []).map((item: any) => ({
+        code: item.code,
+        type: item.type || "percentage",
+        value: Number(item.value || 0),
+        expiryDate: item.expiry_date || "2200-12-31",
+        usageLimit: Number(item.usage_limit || 100),
+        usageCount: Number(item.usage_count || 0),
+        minOrderAmount: item.min_order_amount ? Number(item.min_order_amount) : undefined
+      }));
+
+      this.saveCoupons(mapped);
+      return mapped;
+    } catch {
+      return this.getCoupons();
+    }
   }
 
   static async apiSaveCoupons(coupons: Coupon[]): Promise<void> {
-    const res = await fetch("/api/coupons", {
-      method: "PUT",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(coupons)
-    });
-    if (!res.ok) throw new Error("Failed to save coupons list.");
-    this.saveCoupons(coupons);
+    const payload = coupons.map(item => ({
+      code: item.code,
+      type: item.type,
+      value: Number(item.value || 0),
+      expiry_date: item.expiryDate,
+      usage_limit: Number(item.usageLimit || 100),
+      usage_count: Number(item.usageCount || 0),
+      min_order_amount: item.minOrderAmount || null
+    }));
+
+    try {
+      const { error } = await supabase.from("coupons").upsert(payload);
+      if (error) throw error;
+      this.saveCoupons(coupons);
+    } catch (err) {
+      console.error("[Supabase Coupons Sync Failed]", err);
+      this.saveCoupons(coupons);
+    }
   }
 
   static async fetchReviews(): Promise<Review[]> {
-    const res = await fetch("/api/reviews");
-    if (!res.ok) throw new Error("Failed to load reviews catalog.");
-    const data = await res.json();
-    this.saveReviews(data);
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("*")
+        .order("date", { ascending: false });
+
+      if (error) {
+        console.warn("[Supabase] 'reviews' query fallback to localStorage.", error);
+        return this.getReviews();
+      }
+
+      const mapped: Review[] = (data || []).map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        rating: Number(item.rating || 5),
+        date: item.date || new Date().toISOString(),
+        comment: item.comment || "",
+        avatar: item.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100"
+      }));
+
+      this.saveReviews(mapped);
+      return mapped;
+    } catch {
+      return this.getReviews();
+    }
   }
 
   static async apiPostReview(review: Review): Promise<void> {
-    const res = await fetch("/api/reviews", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(review)
-    });
-    if (!res.ok) throw new Error("Failed to send review.");
-    await this.fetchReviews();
+    const payload = {
+      id: review.id,
+      name: review.name,
+      rating: Number(review.rating || 5),
+      date: review.date,
+      comment: review.comment,
+      avatar: review.avatar
+    };
+
+    try {
+      const { error } = await supabase.from("reviews").insert(payload);
+      if (error) throw error;
+      await this.fetchReviews();
+    } catch (err) {
+      console.error("[Supabase Review POST Failed]", err);
+      const current = this.getReviews();
+      current.unshift(review);
+      this.saveReviews(current);
+    }
   }
 
   static async apiSaveReviews(reviews: Review[]): Promise<void> {
-    const res = await fetch("/api/reviews", {
-      method: "PUT",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(reviews)
-    });
-    if (!res.ok) throw new Error("Failed to edit reviews array.");
-    this.saveReviews(reviews);
+    const payload = reviews.map(item => ({
+      id: item.id,
+      name: item.name,
+      rating: Number(item.rating || 5),
+      date: item.date,
+      comment: item.comment,
+      avatar: item.avatar
+    }));
+
+    try {
+      const { error } = await supabase.from("reviews").upsert(payload);
+      if (error) throw error;
+      this.saveReviews(reviews);
+    } catch (err) {
+      console.error("[Supabase Reviews Batch Saving Failed]", err);
+      this.saveReviews(reviews);
+    }
   }
 
   static async fetchSettings(): Promise<RestaurantSettings> {
-    const res = await fetch("/api/settings");
-    if (!res.ok) throw new Error("Failed to reload system variables.");
-    const data = await res.json();
-    this.saveSettings(data);
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("*")
+        .limit(1);
+
+      if (error || !data || data.length === 0) {
+        console.warn("[Supabase] Settings fetch fallback.", error);
+        return this.getSettings();
+      }
+
+      const item = data[0];
+      const mapped: RestaurantSettings = {
+        name: item.name || "Sagar Ratna",
+        contactNumber: item.contact_number || "+91-96300-13483",
+        whatsappNumber: item.whatsapp_number || "+919630013483",
+        address: item.address || "",
+        businessHours: item.business_hours || "11:00 AM - 11:30 PM DAILY",
+        deliveryCharges: Number(item.delivery_charges || 25),
+        gstPercentage: Number(item.gst_percentage || 5),
+        facebookUrl: item.facebook_url || "https://facebook.com",
+        instagramUrl: item.instagram_url || "https://instagram.com",
+        twitterUrl: item.twitter_url || "https://twitter.com",
+        googleMapsUrl: item.google_maps_url || ""
+      };
+
+      this.saveSettings(mapped);
+      return mapped;
+    } catch {
+      return this.getSettings();
+    }
   }
 
   static async apiSaveSettings(settings: RestaurantSettings): Promise<void> {
-    const res = await fetch("/api/settings", {
-      method: "POST",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(settings)
-    });
-    if (!res.ok) throw new Error("Failed to write system settings.");
-    this.saveSettings(settings);
+    const payload = {
+      id: "singleton-config", // Keep simple single row config
+      name: settings.name,
+      contact_number: settings.contactNumber,
+      whatsapp_number: settings.whatsappNumber,
+      address: settings.address,
+      business_hours: settings.businessHours,
+      delivery_charges: Number(settings.deliveryCharges || 0),
+      gst_percentage: Number(settings.gstPercentage || 0),
+      facebook_url: settings.facebookUrl,
+      instagram_url: settings.instagramUrl,
+      twitter_url: settings.twitterUrl,
+      google_maps_url: settings.googleMapsUrl
+    };
+
+    try {
+      const { error } = await supabase.from("settings").upsert(payload);
+      if (error) throw error;
+      this.saveSettings(settings);
+    } catch (err) {
+      console.error("[Supabase Settings save failed]", err);
+      this.saveSettings(settings);
+    }
   }
 
   static async fetchAuditLogs(): Promise<AuditLog[]> {
-    const res = await fetch("/api/audit-logs", { headers: this.getAuthHeaders() });
-    if (!res.ok) throw new Error("Failed to fetch logs ledger.");
-    const data = await res.json();
-    localStorage.setItem("sr_audit_logs", JSON.stringify(data));
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .select("*")
+        .order("timestamp", { ascending: false });
+
+      if (error) {
+        console.warn("[Supabase] 'audit_logs' query fallback to localStorage.", error);
+        return this.getAuditLogs();
+      }
+
+      const mapped: AuditLog[] = (data || []).map((item: any) => ({
+        id: item.id,
+        timestamp: item.timestamp || new Date().toISOString(),
+        user: item.user || "Admin",
+        action: item.action || "Log Captured",
+        details: item.details || "",
+        ipAddress: item.ip_address || "127.0.0.1"
+      }));
+
+      localStorage.setItem("sr_audit_logs", JSON.stringify(mapped));
+      return mapped;
+    } catch {
+      return this.getAuditLogs();
+    }
   }
 
   static async apiAddAuditLog(action: string, details: string, user: string = "Admin"): Promise<void> {
-    const res = await fetch("/api/audit-logs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, details, user })
-    });
-    if (res.ok) {
+    const logId = `log-${Date.now()}`;
+    const payload = {
+      id: logId,
+      timestamp: new Date().toISOString(),
+      user: user,
+      action: action,
+      details: details,
+      ip_address: "127.0.0.1"
+    };
+
+    try {
+      const { error } = await supabase.from("audit_logs").insert(payload);
+      if (error) throw error;
       await this.fetchAuditLogs();
+    } catch (err) {
+      console.error("[Supabase Audit Log POST Failed]", err);
+      const logs = this.getAuditLogs();
+      logs.unshift({
+        id: logId,
+        timestamp: payload.timestamp,
+        user: payload.user,
+        action: payload.action,
+        details: payload.details,
+        ipAddress: payload.ip_address
+      });
+      localStorage.setItem("sr_audit_logs", JSON.stringify(logs));
     }
   }
 }
+
