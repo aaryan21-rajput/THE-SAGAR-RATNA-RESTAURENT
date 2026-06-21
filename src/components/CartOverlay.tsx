@@ -3,6 +3,7 @@ import { ShoppingBag, X, Plus, Minus, Send, CheckCircle2, MessageSquare, MapPin 
 import { motion, AnimatePresence } from "motion/react";
 import { CartItem, MenuItem } from "../types";
 import { LocalDB } from "../lib/db";
+import TableFloorplan from "./TableFloorplan";
 
 interface CartOverlayProps {
   cart: CartItem[];
@@ -22,7 +23,7 @@ export default function CartOverlay({
   const [isOpen, setIsOpen] = useState(false);
   const [userName, setUserName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [orderType, setOrderType] = useState<"dine-in" | "takeaway" | "delivery">("dine-in");
+  const [orderType, setOrderType] = useState<"dine-in" | "takeaway">("dine-in");
   const [tableNumber, setTableNumber] = useState("");
   const [address, setAddress] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(false);
@@ -407,12 +408,12 @@ export default function CartOverlay({
                       ) : (
                         <>
                           <h4 className="text-xs font-mono font-bold text-stone-400 tracking-widest uppercase">
-                            GUEST & DELIVERY DETAILS
+                            GUEST & SERVICE DETAILS
                           </h4>
 
                           {/* Select Order Service Type */}
-                          <div className="grid grid-cols-3 gap-2 bg-stone-100 p-1 rounded-lg border border-stone-200">
-                            {(["dine-in", "takeaway", "delivery"] as const).map((type) => (
+                          <div className="grid grid-cols-2 gap-2 bg-stone-100 p-1 rounded-lg border border-stone-200">
+                            {(["dine-in", "takeaway"] as const).map((type) => (
                               <button
                                 key={type}
                                 type="button"
@@ -457,6 +458,7 @@ export default function CartOverlay({
                               <motion.div
                                 initial={{ opacity: 0, y: -5 }}
                                 animate={{ opacity: 1, y: 0 }}
+                                className="space-y-3"
                               >
                                 <label className="text-[10px] text-stone-400 font-mono block mb-1">RESTAURANT TABLE NO *</label>
                                 <input
@@ -466,6 +468,10 @@ export default function CartOverlay({
                                   value={tableNumber}
                                   onChange={(e) => setTableNumber(e.target.value)}
                                   className="w-full bg-white text-stone-900 placeholder-stone-450 text-xs border border-stone-200 rounded-lg p-2.5 focus:outline-none focus:border-[#d4af37] transition-all font-sans text-stone-850"
+                                />
+                                <TableFloorplan
+                                  selectedTable={tableNumber}
+                                  onSelectTable={setTableNumber}
                                 />
                               </motion.div>
                             )}

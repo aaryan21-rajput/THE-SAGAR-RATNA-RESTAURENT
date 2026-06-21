@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { MenuItem, CartItem, Category } from "../types";
 import { categories as defaultCategories } from "../data";
 import { LocalDB } from "../lib/db";
+import TableFloorplan from "./TableFloorplan";
 
 interface MobileViewProps {
   menuList: MenuItem[];
@@ -62,13 +63,20 @@ export default function MobileView({
   // Swipeable Review Card index
   const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
 
+  // Custom mobile review states
+  const [mobileReviewName, setMobileReviewName] = useState("");
+  const [mobileComment, setMobileComment] = useState("");
+  const [mobileRating, setMobileRating] = useState(5);
+  const [isMobileReviewSubmitted, setIsMobileReviewSubmitted] = useState(false);
+  const [mobileHoveredStar, setMobileHoveredStar] = useState<number | null>(null);
+
   // Quick Order dialog state for WhatsApp Floating click
   const [showQuickOrder, setShowQuickOrder] = useState(false);
 
   // Cart Form input states
   const [userName, setUserName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [orderType, setOrderType] = useState<"dine-in" | "takeaway" | "delivery">("dine-in");
+  const [orderType, setOrderType] = useState<"dine-in" | "takeaway">("dine-in");
   const [tableNumber, setTableNumber] = useState("");
   const [address, setAddress] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(false);
@@ -145,12 +153,68 @@ export default function MobileView({
     }
   ];
 
+  const [dynamicReviews, setDynamicReviews] = useState<any[]>(reviewsData);
+
   useEffect(() => {
+    async function loadMobileReviews() {
+      try {
+        const fetched = await LocalDB.fetchReviews();
+        if (fetched && fetched.length > 0) {
+          setDynamicReviews(fetched);
+        }
+      } catch (err) {
+        console.warn("Failed loading live reviews from Supabase:", err);
+      }
+    }
+    loadMobileReviews();
+  }, []);
+
+  useEffect(() => {
+    if (dynamicReviews.length === 0) return;
     const reviewTimer = setInterval(() => {
-      setCurrentReviewIndex((prev) => (prev + 1) % reviewsData.length);
+      setCurrentReviewIndex((prev) => (prev + 1) % dynamicReviews.length);
     }, 4500);
     return () => clearInterval(reviewTimer);
-  }, [reviewsData.length]);
+  }, [dynamicReviews.length]);
+
+  const handleMobileSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mobileReviewName.trim() || !mobileComment.trim()) return;
+
+    const fresh = {
+      id: `rev-m-${Date.now()}`,
+      name: mobileReviewName.trim(),
+      comment: mobileComment.trim(),
+      rating: mobileRating,
+      date: "Today",
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"
+    };
+
+    setDynamicReviews((prev) => [fresh, ...prev]);
+
+    try {
+      await LocalDB.apiPostReview({
+        id: fresh.id,
+        name: fresh.name,
+        comment: fresh.comment,
+        rating: fresh.rating,
+        date: new Date().toISOString(),
+        avatar: fresh.avatar
+      });
+      console.log("[Supabase Mobile Review Success] Sent review to guest ledger.");
+    } catch (err) {
+      console.error("[Supabase Mobile Review Save Fail] Offline but saved locally:", err);
+    }
+
+    setMobileReviewName("");
+    setMobileComment("");
+    setMobileRating(5);
+    setIsMobileReviewSubmitted(true);
+
+    setTimeout(() => {
+      setIsMobileReviewSubmitted(false);
+    }, 4000);
+  };
 
   // Derived calculations
   const totalItems = useMemo(() => cart.reduce((count, item) => count + item.quantity, 0), [cart]);
@@ -510,28 +574,125 @@ export default function MobileView({
               <div className="bg-white p-5 rounded-3xl border border-stone-250/80 shadow-[0_8px_30px_rgba(40,30,10,0.03)] relative overflow-hidden min-h-[160px] flex flex-col justify-between">
                 <span className="absolute right-6 top-4 text-7xl font-serif text-stone-100 select-none pointer-events-none">&ldquo;</span>
                 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-0.5 text-amber-500">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-current" />
-                    ))}
-                  </div>
-                  <p className="text-xs text-stone-605 italic font-sans leading-relaxed font-light">
-                    &ldquo;{reviewsData[currentReviewIndex].comment}&rdquo;
-                  </p>
-                </div>
+                {(() => {
+                  const activeReview = dynamicReviews[currentReviewIndex] || dynamicReviews[0] || reviewsData[0];
+                  if (!activeReview) return null;
+                  return (
+                    <>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-0.5 text-amber-500">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`w-3.5 h-3.5 ${
+                                i < activeReview.rating ? "text-amber-400 fill-amber-400" : "text-stone-200"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-stone-605 italic font-sans leading-relaxed font-light">
+                          &ldquo;{activeReview.comment}&rdquo;
+                        </p>
+                      </div>
 
-                <div className="flex items-center gap-3 pt-4 border-t border-stone-100">
-                  <img 
-                    src={reviewsData[currentReviewIndex].avatar} 
-                    alt={reviewsData[currentReviewIndex].name} 
-                    className="w-8 h-8 rounded-full border border-[#d4af37]/30 object-cover"
-                  />
-                  <div>
-                    <h4 className="text-xs font-bold text-stone-900">{reviewsData[currentReviewIndex].name}</h4>
-                    <span className="text-[10px] text-stone-400 font-mono">Diner Experiencing</span>
-                  </div>
-                </div>
+                      <div className="flex items-center gap-3 pt-4 border-t border-stone-100">
+                        <img 
+                          src={activeReview.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"} 
+                          alt={activeReview.name} 
+                          className="w-8 h-8 rounded-full border border-[#d4af37]/30 object-cover"
+                        />
+                        <div>
+                          <h4 className="text-xs font-bold text-stone-900">{activeReview.name}</h4>
+                          <span className="text-[10px] text-stone-400 font-mono">Diner Experiencing</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Custom Review Form inside Mobile View Home tab */}
+            <div className="px-4 pb-4">
+              <div className="bg-white p-5 rounded-3xl border border-stone-250/80 shadow-[0_8px_30px_rgba(40,30,10,0.03)] relative">
+                <h3 className="text-xs font-serif font-bold text-stone-850 tracking-widest uppercase mb-4">
+                  Share Your Experience
+                </h3>
+
+                <AnimatePresence mode="wait">
+                  {isMobileReviewSubmitted ? (
+                    <motion.div
+                      key="mobile-success"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="py-6 text-center text-green-650 font-sans text-xs flex flex-col items-center justify-center gap-2"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-green-50 border border-green-500/20 flex items-center justify-center text-green-650 mb-2 shadow-sm animate-pulse">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                      <span className="font-bold">Review Submitted!</span>
+                      <span className="text-[10px] text-stone-400">Thank you for your valuable feedback.</span>
+                    </motion.div>
+                  ) : (
+                    <motion.form key="mobile-form" onSubmit={handleMobileSubmitReview} className="space-y-4">
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="Your Name (e.g., Aaryan Rajput)"
+                          required
+                          value={mobileReviewName}
+                          onChange={(e) => setMobileReviewName(e.target.value)}
+                          className="w-full bg-stone-50 text-stone-900 placeholder-stone-400 text-xs rounded-xl p-3 border border-stone-200 focus:outline-none focus:border-[#d4af37] transition-all font-sans"
+                        />
+                      </div>
+
+                      {/* Interactive Rating bar selection */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-stone-400 font-sans mr-2">Your Rating:</span>
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setMobileRating(star)}
+                              onMouseEnter={() => setMobileHoveredStar(star)}
+                              onMouseLeave={() => setMobileHoveredStar(null)}
+                              className="focus:outline-none cursor-pointer"
+                            >
+                              <Star
+                                className={`w-5 h-5 transition-colors ${
+                                  star <= (mobileHoveredStar ?? mobileRating)
+                                    ? "text-amber-400 fill-amber-400"
+                                    : "text-stone-200"
+                                }`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <textarea
+                          placeholder="How was your experience? Dosa or Paneer?"
+                          required
+                          rows={3}
+                          value={mobileComment}
+                          onChange={(e) => setMobileComment(e.target.value)}
+                          className="w-full bg-stone-50 text-stone-900 placeholder-stone-400 text-xs rounded-xl p-3 border border-stone-200 focus:outline-none focus:border-[#d4af37] transition-all font-sans resize-none"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-3 bg-stone-900 text-[#d4af37] hover:bg-[#aa7c11] text-xs font-bold tracking-widest uppercase rounded-xl flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all focus:outline-none"
+                      >
+                        <Send className="w-3.5 h-3.5 stroke-[2]" />
+                        SUBMIT TESTIMONIAL
+                      </button>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
 
@@ -926,9 +1087,9 @@ export default function MobileView({
                     <>
                       <h4 className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-widest">Diner & Service Details</h4>
                       
-                      {/* Dine-in vs Takeaway vs Delivery selector */}
-                      <div className="grid grid-cols-3 gap-2 bg-stone-105 p-1 rounded-lg border border-stone-200">
-                        {(["dine-in", "takeaway", "delivery"] as const).map((type) => (
+                      {/* Dine-in vs Takeaway selector */}
+                      <div className="grid grid-cols-2 gap-2 bg-stone-105 p-1 rounded-lg border border-stone-200">
+                        {(["dine-in", "takeaway"] as const).map((type) => (
                           <button
                             key={type}
                             type="button"
@@ -970,15 +1131,21 @@ export default function MobileView({
                         </div>
 
                         {orderType === "dine-in" && (
-                          <div>
-                            <label className="text-[9px] text-stone-550 font-mono block mb-1">TABLE NUMBER *</label>
-                            <input
-                              type="text"
-                              required
-                              placeholder="e.g., Table No. 4"
-                              value={tableNumber}
-                              onChange={(e) => setTableNumber(e.target.value)}
-                              className="w-full bg-white text-stone-850 placeholder-stone-400 text-xs border border-stone-200 rounded-lg p-2.5 focus:outline-none focus:border-[#aa7c11]"
+                          <div className="space-y-3">
+                            <div>
+                              <label className="text-[9px] text-stone-550 font-mono block mb-1">TABLE NUMBER *</label>
+                              <input
+                                type="text"
+                                required
+                                placeholder="e.g., Table No. 4"
+                                value={tableNumber}
+                                onChange={(e) => setTableNumber(e.target.value)}
+                                className="w-full bg-white text-stone-850 placeholder-stone-400 text-xs border border-stone-200 rounded-lg p-2.5 focus:outline-none focus:border-[#aa7c11]"
+                              />
+                            </div>
+                            <TableFloorplan
+                              selectedTable={tableNumber}
+                              onSelectTable={setTableNumber}
                             />
                           </div>
                         )}

@@ -34,3 +34,35 @@ export interface Review {
   comment: string;
   avatar: string;
 }
+
+export type KOTStatus = "New Order" | "Accepted" | "Preparing" | "Ready" | "Served" | "Cancelled";
+
+export interface OrderItem {
+  id: string;
+  orderId: string;
+  menuItemId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  customization?: string;
+}
+
+export interface KOT {
+  id: string; // Format: KOT-0001, etc.
+  orderId: string;
+  tableNumber: string;
+  customerName: string;
+  orderType: "dine-in" | "takeaway" | "delivery";
+  status: KOTStatus;
+  specialInstructions: string;
+  createdAt: string;
+  preparationTime: number; // Duration in minutes to prepare
+  printed?: boolean; // Tracking thermal/POS ticket layout generation
+  items: {
+    menuItemId: string;
+    name: string;
+    price: number;
+    quantity: number;
+    customization?: string;
+  }[];
+}

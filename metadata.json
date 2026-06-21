@@ -1,6 +1,6 @@
 {
   "name": "Sagar Ratna Digital Menu",
-  "description": "Premium, luxurious digital menu and ordering page with search, filters, and WhatsApp checkout for Sagar Ratna Restaurant.",
+  "description": "Premium, luxurious digital menu, real-time KOT display, waiter systems with table management, and WhatsApp checkout.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

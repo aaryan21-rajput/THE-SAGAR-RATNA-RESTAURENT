@@ -1,4 +1,4 @@
-import { MenuItem, Review } from "../types";
+import { MenuItem, Review, KOT, KOTStatus, OrderItem } from "../types";
 import { menuItems as defaultMenuItems, reviews as defaultReviews } from "../data";
 import { createClient } from "@supabase/supabase-js";
 
@@ -36,9 +36,10 @@ export interface Order {
   appliedCoupon?: string;
   grandTotal: number;
   paymentStatus: "Pending" | "Paid" | "Failed";
-  orderStatus: "New Order" | "Accepted" | "Preparing" | "Ready" | "Out For Delivery" | "Delivered" | "Cancelled";
+  orderStatus: "New Order" | "Accepted" | "Preparing" | "Ready" | "Out For Delivery" | "Delivered" | "Cancelled" | "Served";
   createdAt: string; // ISO string or date
   paymentMethod?: string;
+  kotNumber?: string;
 }
 
 export interface Coupon {
@@ -457,10 +458,14 @@ export class LocalDB {
   static async apiAddOrder(order: Omit<Order, "id" | "createdAt">): Promise<Order> {
     const orders = this.getOrders();
     const newId = `SR-${1000 + orders.length + Math.floor(Math.random() * 100)}`;
+    const kotCount = this.getKOTs().length + 1;
+    const kotNumber = `KOT-${String(kotCount).padStart(4, "0")}`;
+
     const fullOrder: Order = {
       ...order,
       id: newId,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      kotNumber: kotNumber
     };
 
     const payload = {
@@ -481,7 +486,8 @@ export class LocalDB {
       payment_status: fullOrder.paymentStatus || "Pending",
       order_status: fullOrder.orderStatus || "New Order",
       created_at: fullOrder.createdAt,
-      payment_method: fullOrder.paymentMethod || "Cash on Delivery"
+      payment_method: fullOrder.paymentMethod || "Cash on Delivery",
+      kot_number: kotNumber
     };
 
     console.log("[Supabase API POST Payload] Submitting new order:", payload);
@@ -507,6 +513,27 @@ export class LocalDB {
         `Order reference ${newId} with total ₹${fullOrder.grandTotal} stored inside cloud database successfully.`,
         "System"
       );
+
+      // Successfully saved order. Now save order items and KOT in Supabase
+      try {
+        await this.apiAddOrderItems(fullOrder.id, fullOrder.items);
+        
+        const freshKOT: KOT = {
+          id: kotNumber,
+          orderId: fullOrder.id,
+          tableNumber: fullOrder.tableNumber || "Takeaway",
+          customerName: fullOrder.customerName,
+          orderType: fullOrder.orderType,
+          status: "New Order",
+          specialInstructions: fullOrder.items.map(i => i.customization).filter(Boolean).join(", ") || "None",
+          createdAt: fullOrder.createdAt,
+          preparationTime: 15,
+          items: fullOrder.items
+        };
+        await this.apiAddKOT(freshKOT);
+      } catch (childErr) {
+        console.warn("[KOT/Items Child Sync Error] Handled locally:", childErr);
+      }
 
       // Play audio ring
       try {
@@ -536,6 +563,29 @@ export class LocalDB {
       return fullOrder;
     } catch (err: any) {
       console.error("[Order Relay Exception]", err);
+      
+      // Save KOT locally anyway
+      try {
+        const freshKOT: KOT = {
+          id: kotNumber,
+          orderId: fullOrder.id,
+          tableNumber: fullOrder.tableNumber || "Takeaway",
+          customerName: fullOrder.customerName,
+          orderType: fullOrder.orderType,
+          status: "New Order",
+          specialInstructions: fullOrder.items.map(i => i.customization).filter(Boolean).join(", ") || "None",
+          createdAt: fullOrder.createdAt,
+          preparationTime: 15,
+          items: fullOrder.items
+        };
+        
+        const localKOTs = this.getKOTs();
+        localKOTs.unshift(freshKOT);
+        this.saveKOTs(localKOTs);
+      } catch (kotErr) {
+        console.error("Local KOT save failure:", kotErr);
+      }
+
       // Let's fallback to local saving if connection fails, so order is not fully lost for current user!
       const current = this.getOrders();
       current.unshift(fullOrder);
@@ -964,6 +1014,189 @@ export class LocalDB {
         ipAddress: payload.ip_address
       });
       localStorage.setItem("sr_audit_logs", JSON.stringify(logs));
+    }
+  }
+
+  // --- KOT DATABASE SYSTEM OPERATIONS ---
+  static getKOTs(): KOT[] {
+    const stored = localStorage.getItem("sr_kots");
+    if (!stored) {
+      // Seed with fallback mock KOTs matching existing active mock orders for initial realism
+      const fallbackKOTs: KOT[] = [];
+      localStorage.setItem("sr_kots", JSON.stringify(fallbackKOTs));
+      return fallbackKOTs;
+    }
+    return JSON.parse(stored);
+  }
+
+  static saveKOTs(kots: KOT[]): void {
+    localStorage.setItem("sr_kots", JSON.stringify(kots));
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("kots_updated"));
+  }
+
+  static async fetchKOTs(): Promise<KOT[]> {
+    console.log("[Supabase API Request] Loading KOT list...");
+    try {
+      const { data, error, status } = await supabase
+        .from("kots")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.warn("[Supabase] 'kots' query fallback to localStorage.", error);
+        return this.getKOTs();
+      }
+
+      const mapped: KOT[] = (data || []).map((item: any) => ({
+        id: item.id,
+        orderId: item.order_id,
+        tableNumber: item.table_number || "Takeaway",
+        customerName: item.customer_name || "Guest User",
+        orderType: item.order_type || "takeaway",
+        status: item.status || "New Order",
+        specialInstructions: item.special_instructions || "None",
+        createdAt: item.created_at || new Date().toISOString(),
+        preparationTime: Number(item.preparation_time || 15),
+        printed: item.printed !== undefined ? !!item.printed : false,
+        items: Array.isArray(item.items) ? item.items : (typeof item.items === 'string' ? JSON.parse(item.items) : [])
+      }));
+
+      this.saveKOTs(mapped);
+      return mapped;
+    } catch (err) {
+      console.error("[KOT Transport Sync Error]", err);
+      return this.getKOTs();
+    }
+  }
+
+  static async apiAddKOT(kot: KOT): Promise<KOT> {
+    const payload = {
+      id: kot.id,
+      order_id: kot.orderId,
+      table_number: kot.tableNumber,
+      customer_name: kot.customerName,
+      order_type: kot.orderType,
+      status: kot.status,
+      special_instructions: kot.specialInstructions,
+      created_at: kot.createdAt,
+      preparation_time: Number(kot.preparationTime),
+      printed: kot.printed || false,
+      items: kot.items
+    };
+
+    try {
+      const { error } = await supabase.from("kots").insert(payload);
+      if (error) {
+        console.error("[Supabase KOT insertion failed]", error);
+      }
+    } catch (err) {
+      console.error("[Supabase KOT connection failed]", err);
+    }
+
+    const kots = this.getKOTs();
+    // check unique
+    if (!kots.some(k => k.id === kot.id)) {
+      kots.unshift({ ...kot, printed: kot.printed || false });
+      this.saveKOTs(kots);
+    }
+
+    return kot;
+  }
+
+  static async apiUpdateKOTPrinted(kotId: string, printed: boolean): Promise<void> {
+    console.log(`[Supabase API Request] Updating KOT ${kotId} printed status to ${printed}`);
+    try {
+      const { error } = await supabase
+        .from("kots")
+        .update({ printed })
+        .eq("id", kotId);
+      
+      if (error) {
+        console.error("[Supabase KOT Printed update failed]", error);
+      }
+
+      // Update in local cache
+      const kots = this.getKOTs();
+      const kotIdx = kots.findIndex(k => k.id === kotId);
+      if (kotIdx !== -1) {
+        kots[kotIdx].printed = printed;
+        this.saveKOTs(kots);
+      }
+    } catch (err) {
+      console.error("[KOT printed update exception]", err);
+      // Fallback update in local cache
+      const kots = this.getKOTs();
+      const kotIdx = kots.findIndex(k => k.id === kotId);
+      if (kotIdx !== -1) {
+        kots[kotIdx].printed = printed;
+        this.saveKOTs(kots);
+      }
+    }
+  }
+
+  static async apiUpdateKOTStatus(kotId: string, status: KOTStatus): Promise<void> {
+    console.log(`[Supabase API Request] Updating KOT status ${kotId} to ${status}`);
+    try {
+      const { error } = await supabase
+        .from("kots")
+        .update({ status })
+        .eq("id", kotId);
+      
+      if (error) {
+        console.error("[Supabase KOT Status update failed]", error);
+      }
+
+      // Update in local cache
+      const kots = this.getKOTs();
+      const kotIdx = kots.findIndex(k => k.id === kotId);
+      if (kotIdx !== -1) {
+        kots[kotIdx].status = status;
+        this.saveKOTs(kots);
+
+        // Map KOTStatus to OrderStatus and update linked order status
+        const orderId = kots[kotIdx].orderId;
+        
+        let mappedOrderStatus = status as any;
+        if (status === "New Order") mappedOrderStatus = "New Order";
+        else if (status === "Accepted") mappedOrderStatus = "Accepted";
+        else if (status === "Preparing") mappedOrderStatus = "Preparing";
+        else if (status === "Ready") mappedOrderStatus = "Ready";
+        else if (status === "Served") mappedOrderStatus = "Delivered";
+        else if (status === "Cancelled") mappedOrderStatus = "Cancelled";
+        
+        await this.apiUpdateOrderStatus(orderId, mappedOrderStatus);
+      }
+    } catch (err) {
+      console.error("[KOT status update exception]", err);
+      // Fallback update in local cache
+      const kots = this.getKOTs();
+      const kotIdx = kots.findIndex(k => k.id === kotId);
+      if (kotIdx !== -1) {
+        kots[kotIdx].status = status;
+        this.saveKOTs(kots);
+      }
+    }
+  }
+
+  static async apiAddOrderItems(orderId: string, items: { menuItemId: string; name: string; price: number; quantity: number; customization?: string }[]): Promise<void> {
+    const payloads = items.map((item, index) => ({
+      id: `${orderId}-item-${index}-${Date.now()}`,
+      order_id: orderId,
+      menu_item_id: item.menuItemId,
+      name: item.name,
+      price: Number(item.price || 0),
+      quantity: Number(item.quantity || 1),
+      customization: item.customization || ""
+    }));
+
+    try {
+      const { error } = await supabase.from("order_items").insert(payloads);
+      if (error) {
+        console.error("[Supabase OrderItems insertion failed]", error);
+      }
+    } catch (err) {
+      console.error("[Supabase OrderItems connection failed]", err);
     }
   }
 }
