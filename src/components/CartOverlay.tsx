@@ -1,5 +1,15 @@
 import React, { useState } from "react";
-import { ShoppingBag, X, Plus, Minus, Send, CheckCircle2, MessageSquare, MapPin } from "lucide-react";
+import {
+  ShoppingBag,
+  X,
+  Plus,
+  Minus,
+  Send,
+  CheckCircle2,
+  MessageSquare,
+  MapPin,
+  Trash2,
+} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { CartItem, MenuItem } from "../types";
 import { LocalDB } from "../lib/db";
@@ -9,6 +19,7 @@ interface CartOverlayProps {
   cart: CartItem[];
   onAddToCart: (item: MenuItem) => void;
   onRemoveFromCart: (item: MenuItem) => void;
+  onRemoveEntirelyFromCart: (item: MenuItem) => void;
   onUpdateCustomization: (itemId: string, note: string) => void;
   onClearCart: () => void;
 }
@@ -17,18 +28,35 @@ export default function CartOverlay({
   cart,
   onAddToCart,
   onRemoveFromCart,
+  onRemoveEntirelyFromCart,
   onUpdateCustomization,
-  onClearCart
+  onClearCart,
 }: CartOverlayProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [userName, setUserName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [orderType, setOrderType] = useState<"dine-in" | "takeaway">("dine-in");
   const [tableNumber, setTableNumber] = useState("");
+  const [isQrScanned, setIsQrScanned] = useState(false);
   const [address, setAddress] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Pre-fill table number from scanned table URL parameters
+  React.useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tableVal = params.get("table") || params.get("t");
+      if (tableVal) {
+        setTableNumber(tableVal);
+        setOrderType("dine-in");
+        setIsQrScanned(true);
+      }
+    } catch (e) {
+      // safe fallback
+    }
+  }, []);
 
   // OTP Verification System variables
   const [showOtpVerification, setShowOtpVerification] = useState(false);
@@ -65,7 +93,10 @@ export default function CartOverlay({
   };
 
   const totalItems = cart.reduce((count, item) => count + item.quantity, 0);
-  const subtotal = cart.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
+  const subtotal = cart.reduce(
+    (sum, item) => sum + item.menuItem.price * item.quantity,
+    0,
+  );
   const gst = Math.round(subtotal * 0.05); // 5% GST
   const packagingCharge = orderType === "dine-in" ? 0 : 25; // Delivery or takeaway packaging
   const grandTotal = subtotal + gst + packagingCharge;
@@ -73,7 +104,7 @@ export default function CartOverlay({
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userName.trim()) return;
-    
+
     if (!showOtpVerification) {
       // Security Gate: generate and intercept with OTP
       const randomOtp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -86,7 +117,9 @@ export default function CartOverlay({
     }
 
     if (otpCode !== generatedOtp) {
-      setOtpError("Incorrect One-Time Passcode. Please enter the valid simulator bypass code.");
+      setOtpError(
+        "Incorrect One-Time Passcode. Please enter the valid simulator bypass code.",
+      );
       return;
     }
 
@@ -108,7 +141,7 @@ export default function CartOverlay({
           name: ci.menuItem.name,
           price: ci.menuItem.price,
           quantity: ci.quantity,
-          customization: ci.customization
+          customization: ci.customization,
         })),
         subtotal: subtotal,
         gst: gst,
@@ -118,15 +151,17 @@ export default function CartOverlay({
         orderStatus: "New Order" as const,
         paymentStatus: "Pending" as const,
         paymentMethod: "Cash on Delivery", // Store payment method explicitly
-        totalAmount: grandTotal
+        totalAmount: grandTotal,
       };
 
       // Ensure save is fully acknowledged and confirmed by the server first
       const savedOrder = await LocalDB.apiAddOrder(orderData);
-      
+
       // Build the WhatsApp message link
       const storedSettings = LocalDB.getSettings();
-      const restaurantNumber = storedSettings.whatsappNumber ? storedSettings.whatsappNumber.replace(/[^0-9]/g, "") : "919630013483";
+      const restaurantNumber = storedSettings.whatsappNumber
+        ? storedSettings.whatsappNumber.replace(/[^0-9]/g, "")
+        : "919630013483";
       let message = `*🍽️ NEW ORDER - SAGAR RATNA RESTAURANT*\n`;
       message += `==============================\n\n`;
       message += `🆔 *Order ID:* ${savedOrder.id}\n`;
@@ -151,7 +186,8 @@ export default function CartOverlay({
       message += `------------------------------\n`;
       message += `Subtotal: ₹${subtotal}\n`;
       message += `GST (5%): ₹${gst}\n`;
-      if (packagingCharge > 0) message += `Packaging/Delivery: ₹${packagingCharge}\n`;
+      if (packagingCharge > 0)
+        message += `Packaging/Delivery: ₹${packagingCharge}\n`;
       message += `*🔥 GRAND TOTAL: ₹${grandTotal}*\n\n`;
       message += `🛋️ _Sent via Sagar Ratna Digital Portal_`;
 
@@ -173,7 +209,10 @@ export default function CartOverlay({
       }, 4000);
     } catch (err: any) {
       console.error(err);
-      setCheckoutError(err.message || "Failed to submit order. Please check server connections and try again.");
+      setCheckoutError(
+        err.message ||
+          "Failed to submit order. Please check server connections and try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -201,8 +240,12 @@ export default function CartOverlay({
               </span>
             </div>
             <div className="flex flex-col items-start pr-1 leading-tight">
-              <span className="text-[10px] text-gray-900 font-mono tracking-wider font-bold uppercase leading-none">ORDER TOTAL</span>
-              <span className="text-sm font-mono font-bold leading-none mt-0.5">₹{grandTotal}</span>
+              <span className="text-[10px] text-gray-900 font-mono tracking-wider font-bold uppercase leading-none">
+                ORDER TOTAL
+              </span>
+              <span className="text-sm font-mono font-bold leading-none mt-0.5">
+                ₹{grandTotal}
+              </span>
             </div>
           </motion.button>
         )}
@@ -236,7 +279,10 @@ export default function CartOverlay({
                 <div className="flex items-center gap-2.5">
                   <ShoppingBag className="w-5.5 h-5.5 text-[#d4af37]" />
                   <h2 className="text-lg font-serif font-semibold text-stone-900 tracking-wide">
-                    Your Selection <span className="text-xs font-mono font-normal text-stone-400">({totalItems} items)</span>
+                    Your Selection{" "}
+                    <span className="text-xs font-mono font-normal text-stone-400">
+                      ({totalItems} items)
+                    </span>
                   </h2>
                 </div>
                 <button
@@ -258,9 +304,12 @@ export default function CartOverlay({
                   >
                     <CheckCircle2 className="w-20 h-20 text-[#d4af37] mx-auto filter drop-shadow-[0_0_15px_rgba(212,175,55,0.15)]" />
                   </motion.div>
-                  <h3 className="mt-6 text-xl font-serif font-bold text-stone-900 uppercase tracking-wider">Order Prepared!</h3>
+                  <h3 className="mt-6 text-xl font-serif font-bold text-stone-900 uppercase tracking-wider">
+                    Order Prepared!
+                  </h3>
                   <p className="mt-2 text-sm text-stone-500 leading-relaxed font-sans">
-                    We've redirected you with a compiled receipt to WhatsApp. Sagar Ratna staff will finalize details shortly.
+                    We've redirected you with a compiled receipt to WhatsApp.
+                    Sagar Ratna staff will finalize details shortly.
                   </p>
                   <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-stone-100 rounded-xl text-[11px] font-mono text-stone-500 border border-stone-200">
                     <MessageSquare className="w-4 h-4 text-green-600 animate-pulse" />
@@ -273,14 +322,20 @@ export default function CartOverlay({
                   <div className="w-16 h-16 rounded-full bg-stone-55 border border-stone-200 flex items-center justify-center text-stone-400 mb-4 shadow-inner">
                     <ShoppingBag className="w-7 h-7" />
                   </div>
-                  <h3 className="text-base font-serif font-semibold text-stone-700">Your bag is empty</h3>
+                  <h3 className="text-base font-serif font-semibold text-stone-700">
+                    Your bag is empty
+                  </h3>
                   <p className="text-xs text-stone-500 mt-1 font-sans max-w-[200px]">
-                    Browse our premium menu categories and add items to your plate.
+                    Browse our premium menu categories and add items to your
+                    plate.
                   </p>
                 </div>
               ) : (
                 /* Cart Items List */
-                <form onSubmit={handleCheckout} className="flex-1 flex flex-col overflow-hidden">
+                <form
+                  onSubmit={handleCheckout}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
                   <div className="flex-1 overflow-y-auto p-5 space-y-4">
                     {cart.map((item) => (
                       <div
@@ -315,33 +370,50 @@ export default function CartOverlay({
                             type="text"
                             placeholder="Add custom preferences..."
                             value={item.customization || ""}
-                            onChange={(e) => onUpdateCustomization(item.menuItem.id, e.target.value)}
+                            onChange={(e) =>
+                              onUpdateCustomization(
+                                item.menuItem.id,
+                                e.target.value,
+                              )
+                            }
                             className="text-xs bg-white text-stone-800 placeholder-stone-400 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#d4af37]/60 border border-stone-200 w-36 sm:w-44 font-sans font-light"
                           />
 
-                          <div className="flex items-center gap-2.5 bg-stone-100/85 px-2 py-1 rounded-lg border border-stone-200/60 font-sans">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2.5 bg-stone-100/85 px-2 py-1 rounded-lg border border-stone-200/60 font-sans">
+                              <button
+                                type="button"
+                                onClick={() => onRemoveFromCart(item.menuItem)}
+                                className="text-stone-500 hover:text-[#d4af37] w-6 h-6 flex items-center justify-center cursor-pointer"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="text-stone-900 font-mono font-bold text-xs">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => onAddToCart(item.menuItem)}
+                                className="text-stone-500 hover:text-[#d4af37] w-6 h-6 flex items-center justify-center cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
                             <button
                               type="button"
-                              onClick={() => onRemoveFromCart(item.menuItem)}
-                              className="text-stone-500 hover:text-[#d4af37] w-6 h-6 flex items-center justify-center cursor-pointer"
+                              onClick={() =>
+                                onRemoveEntirelyFromCart(item.menuItem)
+                              }
+                              className="text-stone-400 hover:text-red-500 hover:bg-red-55/40 p-1.5 rounded-lg transition-colors cursor-pointer flex items-center justify-center"
+                              title="Remove from cart"
                             >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="text-stone-900 font-mono font-bold text-xs">
-                              {item.quantity}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => onAddToCart(item.menuItem)}
-                              className="text-stone-500 hover:text-[#d4af37] w-6 h-6 flex items-center justify-center cursor-pointer"
-                            >
-                              <Plus className="w-3 h-3" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
                       </div>
                     ))}
-                  
+
                     {/* Order Details Form Block */}
                     <div className="bg-stone-50 p-4 rounded-xl border border-stone-200/80 space-y-4 shadow-inner mt-6">
                       {showOtpVerification ? (
@@ -351,36 +423,61 @@ export default function CartOverlay({
                           className="space-y-4 font-sans"
                         >
                           <div className="flex items-center gap-2 text-[#d4af37]">
-                            <svg className="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            <svg
+                              className="w-5 h-5 animate-pulse"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                              />
                             </svg>
-                            <span className="text-xs font-mono font-bold tracking-wider uppercase">OTP Verification Gateway</span>
+                            <span className="text-xs font-mono font-bold tracking-wider uppercase">
+                              OTP Verification Gateway
+                            </span>
                           </div>
 
                           <p className="text-stone-600 text-xs leading-relaxed">
-                            To secure your kitchen reserve table, we have dispatched a 4-digit verification code to <strong className="text-stone-900">{phoneNumber || "+91 11-4560-4560"}</strong>.
+                            To secure your kitchen reserve table, we have
+                            dispatched a 4-digit verification code to{" "}
+                            <strong className="text-stone-900">
+                              {phoneNumber || "+91 11-4560-4560"}
+                            </strong>
+                            .
                           </p>
 
                           <div className="space-y-1.5">
-                            <label className="text-[10px] text-stone-400 font-mono block">ENTER 4-DIGIT CODE FROM PHONE</label>
+                            <label className="text-[10px] text-stone-400 font-mono block">
+                              ENTER 4-DIGIT CODE FROM PHONE
+                            </label>
                             <input
                               type="text"
                               maxLength={4}
                               required
                               placeholder="••••"
                               value={otpCode}
-                              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                              onChange={(e) =>
+                                setOtpCode(e.target.value.replace(/\D/g, ""))
+                              }
                               className="w-full text-center tracking-[0.8em] font-mono font-bold bg-white text-stone-900 placeholder-stone-300 text-base border border-stone-200 rounded-lg p-2.5 focus:outline-none focus:border-[#d4af37] transition-all"
                             />
                             {otpError && (
-                              <p className="text-[10px] text-red-600 font-sans mt-1">{otpError}</p>
+                              <p className="text-[10px] text-red-600 font-sans mt-1">
+                                {otpError}
+                              </p>
                             )}
                           </div>
 
                           {/* Bypass hint for developer sandbox */}
                           <div className="p-2.5 bg-[#d4af37]/10 border border-[#d4af37]/30 rounded-lg text-[10px] text-stone-700 font-mono flex items-center justify-between">
                             <span>🛡️ SIMULATED AUTH BYPASS:</span>
-                            <strong className="text-sm font-bold text-[#d4af37] font-mono tracking-wider">{generatedOtp}</strong>
+                            <strong className="text-sm font-bold text-[#d4af37] font-mono tracking-wider">
+                              {generatedOtp}
+                            </strong>
                           </div>
 
                           <div className="flex items-center justify-between pt-1 text-xs">
@@ -393,7 +490,9 @@ export default function CartOverlay({
                             </button>
 
                             {otpCountdown > 0 ? (
-                              <span className="text-stone-400 font-mono text-[11px]">Resend in {otpCountdown}s</span>
+                              <span className="text-stone-400 font-mono text-[11px]">
+                                Resend in {otpCountdown}s
+                              </span>
                             ) : (
                               <button
                                 type="button"
@@ -432,7 +531,9 @@ export default function CartOverlay({
                           {/* Form Fields depend on selected type */}
                           <div className="space-y-3 font-sans">
                             <div>
-                              <label className="text-[10px] text-stone-400 font-mono block mb-1">YOUR FULL NAME *</label>
+                              <label className="text-[10px] text-stone-400 font-mono block mb-1">
+                                YOUR FULL NAME *
+                              </label>
                               <input
                                 type="text"
                                 required
@@ -444,7 +545,9 @@ export default function CartOverlay({
                             </div>
 
                             <div>
-                              <label className="text-[10px] text-stone-400 font-mono block mb-1">PHONE NUMBER (OPTIONAL)</label>
+                              <label className="text-[10px] text-stone-400 font-mono block mb-1">
+                                PHONE NUMBER (OPTIONAL)
+                              </label>
                               <input
                                 type="tel"
                                 placeholder="+91 XXXXX XXXXX"
@@ -460,18 +563,28 @@ export default function CartOverlay({
                                 animate={{ opacity: 1, y: 0 }}
                                 className="space-y-3"
                               >
-                                <label className="text-[10px] text-stone-400 font-mono block mb-1">RESTAURANT TABLE NO *</label>
+                                <label className="text-[10px] text-stone-400 font-mono block mb-1 font-bold">
+                                  RESTAURANT TABLE NO *
+                                </label>
+                                {isQrScanned && (
+                                  <div className="bg-amber-50 border border-amber-200/60 p-2.5 rounded-xl text-[10.5px] text-[#aa7c11] font-sans flex items-center gap-2 mb-1.5 shadow-xs">
+                                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+                                    <span>
+                                      Locked to{" "}
+                                      <strong>Table #{tableNumber}</strong> via
+                                      scanned dining QR code!
+                                    </span>
+                                  </div>
+                                )}
                                 <input
                                   type="text"
                                   required
                                   placeholder="e.g., Table 4"
                                   value={tableNumber}
-                                  onChange={(e) => setTableNumber(e.target.value)}
+                                  onChange={(e) =>
+                                    setTableNumber(e.target.value)
+                                  }
                                   className="w-full bg-white text-stone-900 placeholder-stone-450 text-xs border border-stone-200 rounded-lg p-2.5 focus:outline-none focus:border-[#d4af37] transition-all font-sans text-stone-850"
-                                />
-                                <TableFloorplan
-                                  selectedTable={tableNumber}
-                                  onSelectTable={setTableNumber}
                                 />
                               </motion.div>
                             )}
@@ -481,7 +594,9 @@ export default function CartOverlay({
                                 initial={{ opacity: 0, y: -5 }}
                                 animate={{ opacity: 1, y: 0 }}
                               >
-                                <label className="text-[10px] text-stone-400 font-mono block mb-1">DELIVERY ADDRESS *</label>
+                                <label className="text-[10px] text-stone-400 font-mono block mb-1">
+                                  DELIVERY ADDRESS *
+                                </label>
                                 <textarea
                                   required
                                   placeholder="Mention street name, flat/house number..."
@@ -516,8 +631,12 @@ export default function CartOverlay({
                         </div>
                       )}
                       <div className="flex justify-between text-stone-900 text-base font-bold pt-2 border-t border-stone-200">
-                        <span className="font-serif italic font-medium">Grand Total</span>
-                        <span className="font-mono text-[#d4af37]">₹{grandTotal}</span>
+                        <span className="font-serif italic font-medium">
+                          Grand Total
+                        </span>
+                        <span className="font-mono text-[#d4af37]">
+                          ₹{grandTotal}
+                        </span>
                       </div>
                     </div>
 
@@ -533,15 +652,18 @@ export default function CartOverlay({
                       className="w-full mt-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-green-950/20 flex items-center justify-center gap-2.5 transition-all cursor-pointer focus:outline-none disabled:opacity-60 disabled:cursor-wait"
                       id="checkout-submit-btn"
                     >
-                      <Send className={`w-4 h-4 fill-current text-white ${isSubmitting ? "animate-bounce" : ""}`} />
-                      {isSubmitting 
-                        ? "RESERVING DISHES IN KITCHEN..." 
-                        : showOtpVerification 
-                        ? "VERIFY OTP & CONFIRM ORDER" 
-                        : "ORDER WITH WHATSAPP"}
+                      <Send
+                        className={`w-4 h-4 fill-current text-white ${isSubmitting ? "animate-bounce" : ""}`}
+                      />
+                      {isSubmitting
+                        ? "RESERVING DISHES IN KITCHEN..."
+                        : showOtpVerification
+                          ? "VERIFY OTP & CONFIRM ORDER"
+                          : "ORDER WITH WHATSAPP"}
                     </button>
                     <p className="text-[10px] text-gray-500 text-center font-sans tracking-wide">
-                      Clicking registers your cart items and starts immediate kitchen chat.
+                      Clicking registers your cart items and starts immediate
+                      kitchen chat.
                     </p>
                   </div>
                 </form>

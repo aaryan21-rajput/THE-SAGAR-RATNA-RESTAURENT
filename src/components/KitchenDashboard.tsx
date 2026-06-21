@@ -5,8 +5,10 @@ import {
   Play, Check, Clock, Printer, Search, AlertCircle, 
   ChefHat, TrendingUp, HelpCircle, Flame, Calendar,
   UtensilsCrossed, Volume2, VolumeX, RefreshCw, Layers, CheckCircle, Ban,
-  Wifi, WifiOff, Cpu, ListOrdered, FileCode, CheckSquare, Settings, PlaySquare
+  Wifi, WifiOff, Cpu, ListOrdered, FileCode, CheckSquare, Settings, PlaySquare,
+  Tv, Eye, X, ExternalLink, Square, Zap
 } from "lucide-react";
+import { PhysicalThermalPrinter } from "../lib/printerService";
 
 export default function KitchenDashboard() {
   const [kots, setKots] = useState<KOT[]>([]);
@@ -16,6 +18,13 @@ export default function KitchenDashboard() {
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [printKOT, setPrintKOT] = useState<KOT | null>(null);
+
+  // New UX state switches
+  const [layoutMode, setLayoutMode] = useState<"board" | "queue">("board");
+  const [tvMode, setTvMode] = useState(false);
+  const [previewKOT, setPreviewKOT] = useState<KOT | null>(null);
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const [timerTick, setTimerTick] = useState(0);
 
   // Advanced thermal receipt print spooler states
   const [autoPrint, setAutoPrint] = useState(true);
@@ -231,6 +240,57 @@ export default function KitchenDashboard() {
     }
   }, [kots, autoPrint, printerStatus]);
 
+  // Live ticking routine to increment prep elapsed minutes on active display
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimerTick(t => t + 1);
+    }, 10000); // Trigger visual refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  // Direct physical hardware terminal connectors using the PhysicalThermalPrinter service
+  const handlePhysicalPrintUSB = async (kot: KOT) => {
+    addPrinterLog(`Initiating WebUSB handshakes for ticket ${kot.id}...`);
+    try {
+      const success = await PhysicalThermalPrinter.printUSB(kot as any, printerWidth === "raw" ? "80mm" : printerWidth);
+      if (success) {
+        addPrinterLog(`[SUCCESS] WebUSB direct ESC/POS command spooled successfully for KOT ${kot.id}!`);
+        await LocalDB.apiUpdateKOTPrinted(kot.id, true);
+        loadData(true);
+      } else {
+        addPrinterLog(`[ERROR] WebUSB printer not claimed or disconnected. Please register with permission.`);
+      }
+    } catch (err: any) {
+      addPrinterLog(`[ERROR] USB physical stream failed: ${err.message || err}`);
+    }
+  };
+
+  const handlePhysicalPrintSerial = async (kot: KOT) => {
+    addPrinterLog(`Opening WebSerial COM line writer for ticket ${kot.id}...`);
+    try {
+      const success = await PhysicalThermalPrinter.printSerial(kot as any, printerWidth === "raw" ? "80mm" : printerWidth);
+      if (success) {
+        addPrinterLog(`[SUCCESS] WebSerial ESC/POS characters successfully emitted for KOT ${kot.id}!`);
+        await LocalDB.apiUpdateKOTPrinted(kot.id, true);
+        loadData(true);
+      } else {
+        addPrinterLog(`[ERROR] WebSerial line failed. Check connection / baud rate.`);
+      }
+    } catch (err: any) {
+      addPrinterLog(`[ERROR] Serial write exception: ${err.message || err}`);
+    }
+  };
+
+  const handlePhysicalPrintSystem = (kot: KOT) => {
+    addPrinterLog(`Routing ticket ${kot.id} to mapped system print spooler fallback...`);
+    try {
+      PhysicalThermalPrinter.printSystemFallback(kot as any, printerWidth === "raw" ? "80mm" : printerWidth);
+      addPrinterLog(`System print fallback iframe successfully injected.`);
+    } catch (err: any) {
+      addPrinterLog(`[ERROR] Fallback framing exception: ${err.message || err}`);
+    }
+  };
+
   // Update status
   const handleUpdateStatus = async (kotId: string, nextStatus: KOTStatus) => {
     try {
@@ -378,7 +438,52 @@ export default function KitchenDashboard() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 self-start md:self-center">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
+          {/* Layout Mode Selector Toggle */}
+          <div className="bg-stone-100 p-1 rounded-xl flex items-center gap-1 border border-stone-200">
+            <button
+              type="button"
+              onClick={() => setLayoutMode("board")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                layoutMode === "board"
+                  ? "bg-stone-900 text-[#d4af37]"
+                  : "text-stone-500 hover:text-stone-900"
+              }`}
+              title="Interactive Lane KOT Board"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Active Lanes</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLayoutMode("queue")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                layoutMode === "queue"
+                  ? "bg-stone-900 text-[#d4af37]"
+                  : "text-stone-500 hover:text-stone-900"
+              }`}
+              title="Searchable flat ticket grid"
+            >
+              <ListOrdered className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Searchable Queue</span>
+            </button>
+          </div>
+
+          {/* Kitchen TV Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => setTvMode(!tvMode)}
+            className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border transition-all cursor-pointer active:scale-95 ${
+              tvMode
+                ? "bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold border-amber-600 animate-pulse"
+                : "bg-white text-stone-700 border-stone-200 hover:bg-stone-50"
+            }`}
+            title="Large size optimized display for Wall TVs and ceiling mounts"
+          >
+            <Tv className="w-3.5 h-3.5" />
+            <span>{tvMode ? "TV Size View" : "Desktop Size"}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => loadData()}
@@ -399,7 +504,7 @@ export default function KitchenDashboard() {
             }`}
           >
             {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-            {isMuted ? "Muted" : "Sound Alerts"}
+            {isMuted ? "Muted" : "Sounds"}
           </button>
         </div>
       </div>
@@ -816,222 +921,499 @@ export default function KitchenDashboard() {
         </div>
       </div>
 
-      {/* Main KDS Grid Layout */}
-      <div className="print:hidden">
-        {processedKots.length === 0 ? (
-          <div className="py-20 text-center bg-white border border-stone-200 rounded-3xl max-w-md mx-auto">
-            <ChefHat className="w-12 h-12 text-[#d4af37]/75 mx-auto mb-3 animate-bounce" />
-            <h3 className="text-sm font-serif font-bold text-stone-800 uppercase tracking-widest">No culinary tickets</h3>
-            <p className="text-xs text-stone-500 font-sans mt-1.5 px-6 leading-relaxed">
-              No orders found in the kitchen matching your filters. Submit a client checkout order in the digital directory to instantly trigger a real-time KOT alert!
-            </p>
+      {/* Main KDS Board or Queue Layout */}
+      <div className={`print:hidden ${tvMode ? "scale-105 origin-top transition-transform duration-300" : ""}`}>
+        {layoutMode === "board" ? (
+          /* ==========================================
+             BOARD LAYOUT: INTERACTIVE KANBAN LANES
+             ========================================== */
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            {/* COLUMN 1: NEW ORDERS */}
+            <div className="bg-stone-100/70 rounded-3xl p-4 border border-stone-200 shadow-sm flex flex-col min-h-[550px]">
+              <div className="flex justify-between items-center pb-3 border-b border-stone-200 mb-4 px-1">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-blue-500 animate-pulse"></span>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-stone-700">New Orders & Tasks</h3>
+                </div>
+                <span className="font-mono text-xs text-stone-500 bg-stone-200/60 px-2.5 py-0.5 rounded-full font-bold">
+                  {processedKots.filter(k => k.status === "New Order" || k.status === "Accepted").length}
+                </span>
+              </div>
+
+              <div className="space-y-4 max-h-[700px] overflow-y-auto scrollbar-thin">
+                {processedKots.filter(k => k.status === "New Order" || k.status === "Accepted").length === 0 ? (
+                  <div className="py-12 text-center text-stone-400 italic text-xs font-sans">
+                    No new orders pending
+                  </div>
+                ) : (
+                  processedKots
+                    .filter(k => k.status === "New Order" || k.status === "Accepted")
+                    .map(kot => renderKOTCard(kot))
+                )}
+              </div>
+            </div>
+
+            {/* COLUMN 2: PREPARING / COOKING */}
+            <div className="bg-[#fff9e6] rounded-3xl p-4 border border-amber-250/50 shadow-sm flex flex-col min-h-[550px]">
+              <div className="flex justify-between items-center pb-3 border-b border-amber-200 mb-4 px-1">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-amber-500 animate-spin"></span>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-800">Cooking / Preparing</h3>
+                </div>
+                <span className="font-mono text-xs text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full font-bold">
+                  {processedKots.filter(k => k.status === "Preparing").length}
+                </span>
+              </div>
+
+              <div className="space-y-4 max-h-[700px] overflow-y-auto scrollbar-thin">
+                {processedKots.filter(k => k.status === "Preparing").length === 0 ? (
+                  <div className="py-12 text-center text-[#aa7c11]/60 italic text-xs font-sans">
+                    Cooking range is clear
+                  </div>
+                ) : (
+                  processedKots
+                    .filter(k => k.status === "Preparing")
+                    .map(kot => renderKOTCard(kot))
+                )}
+              </div>
+            </div>
+
+            {/* COLUMN 3: READY TO SERVE */}
+            <div className="bg-[#eafaf1] rounded-3xl p-4 border border-green-200 shadow-sm flex flex-col min-h-[550px]">
+              <div className="flex justify-between items-center pb-3 border-b border-green-200 mb-4 px-1">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-green-500 animate-bounce"></span>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-green-800">Ready to Dispatch</h3>
+                </div>
+                <span className="font-mono text-xs text-green-700 bg-green-100 px-2.5 py-0.5 rounded-full font-bold">
+                  {processedKots.filter(k => k.status === "Ready").length}
+                </span>
+              </div>
+
+              <div className="space-y-4 max-h-[700px] overflow-y-auto scrollbar-thin">
+                {processedKots.filter(k => k.status === "Ready").length === 0 ? (
+                  <div className="py-12 text-center text-green-600/60 italic text-xs font-sans">
+                    No orders awaiting serve
+                  </div>
+                ) : (
+                  processedKots
+                    .filter(k => k.status === "Ready")
+                    .map(kot => renderKOTCard(kot))
+                )}
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {processedKots.map((kot) => {
-              // Calculate minutes elasped since checkout
-              const elapsedMins = Math.round((Date.now() - new Date(kot.createdAt).getTime()) / 60000);
+          /* ==========================================
+             QUEUE VIEW: FLAT LIST PATTERN (GRID & HISTORY)
+             ========================================== */
+          <div>
+            {processedKots.length === 0 ? (
+              <div className="py-20 text-center bg-white border border-stone-200 rounded-3xl max-w-md mx-auto">
+                <ChefHat className="w-12 h-12 text-[#d4af37]/75 mx-auto mb-3 animate-bounce" />
+                <h3 className="text-sm font-serif font-bold text-stone-800 uppercase tracking-widest">No matching tickets</h3>
+                <p className="text-xs text-stone-500 font-sans mt-1.5 px-6 leading-relaxed">
+                  No orders found in the kitchen matching your filters.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {processedKots.map((kot) => renderKOTCard(kot))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ==========================================
+         THERMAL RECEIPT PREVIEW MODAL POPUP
+         ========================================== */}
+      {previewKOT && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col justify-between">
+            {/* Header */}
+            <div className="p-4 border-b border-stone-800 flex justify-between items-center text-stone-200">
+              <div className="flex items-center gap-2">
+                <Printer className="w-4 h-4 text-[#d4af37]" />
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider">Kitchen Receipt Preview</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewKOT(null)}
+                className="p-1.5 hover:bg-stone-800 rounded-lg text-stone-400 hover:text-stone-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content: Virtual Thermal Roll */}
+            <div className="p-6 bg-stone-950 flex flex-col items-center justify-center border-b border-stone-800">
+              <span className="text-[10px] text-stone-500 font-mono mb-2 uppercase">Simulating POS Thermo Format</span>
               
-              // Status formatting color styles
-              let pillBg = "bg-blue-50 border-blue-100 text-blue-700";
-              let cardHeaderBg = "border-t-4 border-t-blue-500";
-              if (kot.status === "Accepted") {
-                pillBg = "bg-purple-50 border-purple-100 text-purple-700";
-                cardHeaderBg = "border-t-4 border-t-purple-500";
-              } else if (kot.status === "Preparing") {
-                pillBg = "bg-amber-50 border-amber-100 text-amber-700";
-                cardHeaderBg = "border-t-4 border-t-amber-500";
-              } else if (kot.status === "Ready") {
-                pillBg = "bg-green-50 border-green-100 text-green-700";
-                cardHeaderBg = "border-t-4 border-t-green-500";
-              } else if (kot.status === "Served") {
-                pillBg = "bg-stone-50 border-stone-100 text-stone-750";
-                cardHeaderBg = "border-t-4 border-t-stone-500";
-              } else if (kot.status === "Cancelled") {
-                pillBg = "bg-red-50 border-red-100 text-red-700";
-                cardHeaderBg = "border-t-4 border-t-red-500";
-              }
+              <div className="bg-white text-stone-950 p-6 shadow-xl rounded-sm w-[290px] border border-stone-200 leading-tight select-text scrollbar-none font-mono">
+                {/* Torn Dotted roll accent effect */}
+                <div className="border-t-2 border-dashed border-stone-300 pt-1 -mt-4 mb-3"></div>
+                
+                <div className="text-center pb-2 border-b border-dashed border-stone-400">
+                  <p className="text-xs font-bold font-serif uppercase tracking-widest">** SAGAR RATNA **</p>
+                  <p className="text-[9px] text-stone-500 uppercase font-sans mt-0.5">Pure Vegetarian Gourmet</p>
+                  <p className="text-[9px] text-stone-400 mt-1">{new Date(previewKOT.createdAt).toLocaleDateString()} {new Date(previewKOT.createdAt).toLocaleTimeString()}</p>
+                </div>
 
-              return (
-                <div 
-                  key={kot.id}
-                  className={`bg-white rounded-3xl border border-stone-200 shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md transition-all ${cardHeaderBg}`}
-                >
-                  {/* Card Header information */}
-                  <div className="p-4 border-b border-stone-100 space-y-2">
-                    <div className="flex justify-between items-start gap-1">
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-bold font-mono text-stone-900">{kot.id}</span>
-                          <span className={`text-[9px] font-mono select-none px-1.5 py-0.5 rounded border ${pillBg}`}>
-                            {kot.status}
-                          </span>
-                          <span className={`text-[8.5px] font-mono font-bold select-none px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
-                            kot.printed 
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                              : "bg-amber-50 text-amber-700 border border-amber-200"
-                          }`}>
-                            <Printer className="w-2.5 h-2.5 text-[#d4af37]" />
-                            {kot.printed ? "Printed" : "Queued"}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-stone-400 font-mono block mt-0.5">Order Ref: {kot.orderId}</span>
-                      </div>
+                <div className="space-y-1 py-1 border-b border-dashed border-stone-400 text-[10px] my-2">
+                  <div className="flex justify-between font-bold">
+                    <span>KOT ID:</span>
+                    <span>{previewKOT.id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Order:</span>
+                    <span>{previewKOT.orderId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Service Mode:</span>
+                    <span className="capitalize">{previewKOT.orderType}</span>
+                  </div>
+                  {previewKOT.tableNumber && (
+                    <div className="flex justify-between font-bold">
+                      <span>Table No:</span>
+                      <span>{previewKOT.tableNumber}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span>Chef Memo:</span>
+                    <span className="truncate max-w-[140px]">{previewKOT.customerName}</span>
+                  </div>
+                </div>
 
-                      <div className="text-right">
-                        <span className="bg-stone-100 text-stone-700 font-sans text-[10px] px-2 py-0.5 rounded-full border border-stone-200 capitalize font-medium">
-                          {kot.orderType}
-                        </span>
-                        {kot.tableNumber && (
-                          <span className="bg-amber-50 text-[#aa7c11] text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-100 block mt-1 font-mono">
-                            Table: {kot.tableNumber}
-                          </span>
+                <div className="border-b border-dashed border-stone-400 py-1.5 text-[10px] space-y-1 my-2">
+                  <div className="flex justify-between font-bold border-b border-stone-100 pb-1 mb-1">
+                    <span>Item Details</span>
+                    <span>Qty</span>
+                  </div>
+                  {previewKOT.items.map((it, idx) => (
+                    <div key={idx} className="flex justify-between items-start py-0.5">
+                      <div className="max-w-[190px]">
+                        <span>{it.name}</span>
+                        {it.customization && (
+                          <span className="block text-[8px] italic text-stone-500 pl-1.5">* {it.customization}</span>
                         )}
                       </div>
+                      <span className="font-bold">x{it.quantity}</span>
                     </div>
+                  ))}
+                </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-stone-500 pt-1">
-                      <span className="truncate max-w-[150px] font-semibold text-stone-700">{kot.customerName}</span>
-                      <div className="flex items-center gap-1 text-stone-400 font-mono">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>{new Date(kot.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({elapsedMins}m ago)</span>
-                      </div>
+                {previewKOT.specialInstructions && previewKOT.specialInstructions !== "None" && (
+                  <div className="bg-stone-50 p-2 rounded-lg border border-stone-200 mt-2 text-[9px] text-left">
+                    <span className="font-bold">Instructions:</span>
+                    <p className="italic text-stone-600 font-sans">{previewKOT.specialInstructions}</p>
+                  </div>
+                )}
+
+                <div className="text-center text-[9px] uppercase tracking-wider text-stone-400 mt-4 font-bold">
+                  *** KITCHEN DISPATCH ***
+                </div>
+                
+                {/* Torn Dotted roll accent effect bottom */}
+                <div className="border-b-2 border-dashed border-stone-300 pb-1 -mb-4 mt-3"></div>
+              </div>
+            </div>
+
+            {/* Controls panel */}
+            <div className="p-4 bg-stone-900 grid grid-cols-2 gap-2 text-[11px] font-mono">
+              <button
+                type="button"
+                onClick={() => handlePhysicalPrintSystem(previewKOT)}
+                className="flex items-center justify-center gap-1.5 bg-stone-800 hover:bg-stone-700 border border-stone-700 text-stone-200 py-1.5 rounded-xl cursor-pointer transition-colors"
+                title="System browser print fallback (Uses mapped drivers)"
+              >
+                <Printer className="w-3.5 h-3.5 text-[#d4af37]" />
+                System Print
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePhysicalPrintUSB(previewKOT)}
+                className="flex items-center justify-center gap-1.5 bg-stone-800 hover:bg-stone-700 border border-stone-700 text-stone-200 py-1.5 rounded-xl cursor-pointer transition-colors"
+                title="Direct WebUSB connector transfer"
+              >
+                <Cpu className="w-3.5 h-3.5 text-blue-400" />
+                Raw USB
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePhysicalPrintSerial(previewKOT)}
+                className="flex items-center justify-center gap-1.5 bg-stone-800 hover:bg-stone-700 border border-stone-700 text-stone-200 py-1.5 rounded-xl cursor-pointer transition-colors"
+                title="Direct WebSerial terminal writer"
+              >
+                <Cpu className="w-3.5 h-3.5 text-orange-400" />
+                Raw Serial
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  simulateThermalPrint(previewKOT, true);
+                  setPreviewKOT(null);
+                }}
+                className="flex items-center justify-center gap-1.5 bg-[#d4af37] text-stone-950 font-bold py-1.5 rounded-xl cursor-pointer hover:bg-[#aa7c11] transition-colors"
+                title="Direct simulation in the visual slit feed"
+              >
+                <Play className="w-3.5 h-3.5" />
+                Feed Spooler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  /* Helper sub-compiler function to keep KOT visual card layout clean & modular */
+  function renderKOTCard(kot: KOT) {
+    const elapsedMins = Math.round((Date.now() - new Date(kot.createdAt).getTime()) / 60000);
+    const isOverdue = elapsedMins > (kot.preparationTime || 15);
+
+    // Status visual pill configurations
+    let cookBadgeColor = "bg-blue-50 border-blue-100 text-blue-700";
+    let borderAccent = "border-t-4 border-t-blue-500";
+    if (kot.status === "Accepted") {
+      cookBadgeColor = "bg-purple-50 border-purple-100 text-purple-700";
+      borderAccent = "border-t-4 border-t-purple-500";
+    } else if (kot.status === "Preparing") {
+      cookBadgeColor = "bg-amber-50 border-amber-100 text-[#aa7c11]";
+      borderAccent = "border-t-4 border-t-amber-500";
+    } else if (kot.status === "Ready") {
+      cookBadgeColor = "bg-emerald-50 border-emerald-100 text-emerald-700";
+      borderAccent = "border-t-4 border-t-emerald-500";
+    } else if (kot.status === "Served") {
+      cookBadgeColor = "bg-stone-100 border-stone-200 text-stone-600";
+      borderAccent = "border-t-4 border-t-stone-500";
+    } else if (kot.status === "Cancelled") {
+      cookBadgeColor = "bg-red-50 border-red-100 text-red-700";
+      borderAccent = "border-t-4 border-t-red-500";
+    }
+
+    return (
+      <div
+        key={kot.id}
+        className={`bg-white rounded-2xl border border-stone-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden ${borderAccent} ${
+          tvMode ? "p-3.5 gap-3" : "gap-1.5"
+        }`}
+      >
+        {/* Card Header details */}
+        <div className="p-3 border-b border-stone-100 space-y-1.5 flex-shrink-0 bg-stone-50/50">
+          <div className="flex justify-between items-start gap-1">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`font-mono font-black text-stone-900 ${tvMode ? "text-sm" : "text-xs"}`}>{kot.id}</span>
+                <span className={`font-semibold rounded border px-1 text-[8px] sm:text-[9.5px] uppercase ${cookBadgeColor}`}>
+                  {kot.status}
+                </span>
+
+                {/* Print queue status badges requested by user */}
+                {kot.printed ? (
+                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[8px] sm:text-[9px] font-mono px-1.5 py-0.2 rounded-md flex items-center gap-1 font-bold">
+                    <span className="h-1 text-emerald-700">●</span> Printed
+                  </span>
+                ) : printerStatus === "offline" ? (
+                  <span className="bg-red-50 text-red-700 border border-red-200 text-[8px] sm:text-[9px] font-mono px-1.5 py-0.2 rounded-md flex items-center gap-1 font-bold">
+                    <span className="h-1 text-red-600">●</span> Print Failed
+                  </span>
+                ) : (
+                  <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[8px] sm:text-[9px] font-mono px-1.5 py-0.2 rounded-md flex items-center gap-1 font-bold">
+                    <span className="h-1 text-amber-600 animate-pulse">●</span> Pending Print
+                  </span>
+                )}
+              </div>
+              <span className={`text-[#aa7c11] font-mono block ${tvMode ? "text-xs" : "text-[9.5px]"}`}>Order: {kot.orderId}</span>
+            </div>
+
+            <div className="text-right">
+              <span className="bg-stone-200/70 text-stone-700 font-sans text-[9px] px-1.5 py-0.2 rounded-full border border-stone-300 capitalize font-bold">
+                {kot.orderType}
+              </span>
+              {kot.tableNumber && (
+                <span className="bg-amber-50 text-[#aa7c11] text-[9.5px] font-bold px-1.5 py-0.5 rounded-full border border-amber-100 block mt-1 font-mono">
+                  Table: {kot.tableNumber}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-0.5 font-sans">
+            <span className={`font-bold text-stone-800 truncate max-w-[120px] ${tvMode ? "text-xs" : "text-[10.5px]"}`}>{kot.customerName}</span>
+            <div className="flex items-center gap-1 text-stone-400 font-mono text-[9.5px]">
+              <Clock className="w-3 h-3" />
+              <span>{new Date(kot.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({elapsedMins}m)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Order item details with checkout ingredient list */}
+        <div className="p-3.5 flex-grow space-y-2 bg-stone-50/20">
+          <div className="space-y-1.5">
+            {kot.items.map((it, idx) => {
+              const itemKey = `${kot.id}-${idx}`;
+              const isChecked = !!checkedItems[itemKey];
+              return (
+                <div 
+                  key={idx} 
+                  onClick={() => setCheckedItems(prev => ({ ...prev, [itemKey]: !isChecked }))}
+                  className={`flex justify-between items-start py-1 px-1.5 border border-stone-100 rounded-lg transition-all cursor-pointer ${
+                    isChecked ? "bg-stone-100/75 border-stone-200" : "bg-white hover:bg-stone-50"
+                  }`}
+                >
+                  <div className="flex items-start gap-2 max-w-[80%]">
+                    {/* Visual checkmark for TV ceiling mounts and chef trackers */}
+                    <button type="button" className="pt-0.5 pointer-events-none">
+                      {isChecked ? (
+                        <CheckSquare className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                      ) : (
+                        <Square className="w-3.5 h-3.5 text-stone-300 flex-shrink-0" />
+                      )}
+                    </button>
+
+                    <div className="flex-grow">
+                      <span className={`font-medium ${tvMode ? "text-xs font-semibold" : "text-[11px]"} ${
+                        isChecked ? "text-stone-400 line-through decoration-stone-300 decoration-2" : "text-stone-850"
+                      }`}>
+                        {it.name}
+                      </span>
+                      {it.customization && (
+                        <span className="text-[9.5px] italic text-amber-600 block pl-1">
+                          Custom: &quot;{it.customization}&quot;
+                        </span>
+                      )}
                     </div>
                   </div>
-
-                  {/* Order items details */}
-                  <div className="p-4 flex-grow space-y-3.5 bg-stone-50/45">
-                    <div className="space-y-2.5">
-                      {kot.items.map((it, idx) => (
-                        <div key={idx} className="flex justify-between items-start text-xs border-b border-stone-100/50 pb-2">
-                          <div className="space-y-0.5">
-                            <span className="font-semibold text-stone-800">{it.name}</span>
-                            {it.customization && (
-                              <span className="text-[10px] italic text-amber-600 block pl-2 font-sans">
-                                Custom: &quot;{it.customization}&quot;
-                              </span>
-                            )}
-                          </div>
-                          <span className="font-bold text-stone-900 bg-white border border-stone-200 px-1.5 py-0.5 rounded font-mono">
-                            x{it.quantity}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {kot.specialInstructions && kot.specialInstructions !== "None" && (
-                      <div className="bg-orange-50/70 border border-orange-100 p-2.5 rounded-xl">
-                        <span className="text-[10px] uppercase font-bold text-orange-700 tracking-wider font-mono">Kitchen Note:</span>
-                        <p className="text-[10px] text-stone-605 leading-relaxed italic font-light mt-0.5">
-                          {kot.specialInstructions}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Footer & preparation timer management */}
-                  <div className="p-4 bg-white border-t border-stone-100 space-y-3">
-                    {/* Live Prep progress indicators */}
-                    {kot.status !== "Served" && kot.status !== "Cancelled" && (
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[10px] text-stone-500 font-sans">
-                          <span>Preparation Pace:</span>
-                          <span className="font-bold text-stone-800 font-mono">{elapsedMins} / {kot.preparationTime || 15} mins elapse</span>
-                        </div>
-                        <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-1000 ${
-                              elapsedMins > (kot.preparationTime || 15) ? "bg-red-500 animate-pulse" : "bg-[#d4af37]"
-                            }`}
-                            style={{ width: `${Math.min((elapsedMins / (kot.preparationTime || 15)) * 100, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Operational Flow Action Buttons */}
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => triggerPrintFormat(kot)}
-                        title="Print 80mm System Receipt"
-                        className="p-2 border border-stone-200 hover:border-[#d4af37] text-stone-500 hover:text-[#d4af37] bg-white rounded-xl transition-all cursor-pointer active:scale-95"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => simulateThermalPrint(kot, true)}
-                        title="Simulate ESC/POS Thermal Print Feed"
-                        className="p-2 border border-stone-200 hover:border-stone-400 bg-stone-950 text-[#d4af37] rounded-xl transition-all cursor-pointer active:scale-95"
-                      >
-                        <Cpu className="w-4 h-4 animate-pulse" />
-                      </button>
-
-                      {kot.status === "New Order" && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStatus(kot.id, "Accepted")}
-                          className="flex-grow py-2 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          Accept Order
-                        </button>
-                      )}
-
-                      {kot.status === "Accepted" && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStatus(kot.id, "Preparing")}
-                          className="flex-grow py-2 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 animate-pulse"
-                        >
-                          <Play className="w-3.5 h-3.5" />
-                          Start Cooking
-                        </button>
-                      )}
-
-                      {kot.status === "Preparing" && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStatus(kot.id, "Ready")}
-                          className="flex-grow py-2 bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          Food is Ready
-                        </button>
-                      )}
-
-                      {kot.status === "Ready" && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStatus(kot.id, "Served")}
-                          className="flex-grow py-2 bg-stone-800 hover:bg-stone-900 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
-                        >
-                          <UtensilsCrossed className="w-3.5 h-3.5" />
-                          Serve Customer
-                        </button>
-                      )}
-
-                      {/* Cancel button in case of cancellations */}
-                      {kot.status !== "Served" && kot.status !== "Cancelled" && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStatus(kot.id, "Cancelled")}
-                          title="Reject / Cancel"
-                          className="p-2 border border-red-200 hover:bg-red-50 text-red-500 rounded-xl transition-all cursor-pointer active:scale-95"
-                        >
-                          <Ban className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  <span className={`font-black font-mono px-1.5 py-0.2 rounded border ${
+                    isChecked 
+                      ? "text-stone-400 bg-stone-50 border-stone-200" 
+                      : "text-stone-900 bg-[#FAF9F5] border-stone-200"
+                  } ${tvMode ? "text-xs" : "text-[10px]"}`}>
+                    x{it.quantity}
+                  </span>
                 </div>
               );
             })}
           </div>
-        )}
+
+          {kot.specialInstructions && kot.specialInstructions !== "None" && (
+            <div className="bg-orange-50/60 border border-orange-100 p-2 rounded-xl mt-1">
+              <span className="text-[8.5px] font-mono font-bold text-orange-700 uppercase tracking-widest">Kitchen Memo:</span>
+              <p className="text-[10px] text-stone-600 leading-normal italic font-light">
+                {kot.specialInstructions}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Action Footer & Live preparation timer management */}
+        <div className="p-3 border-t border-stone-100 bg-white space-y-3 flex-shrink-0">
+          {/* Ticking timers */}
+          {kot.status !== "Served" && kot.status !== "Cancelled" && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-[9px] text-stone-500 font-sans">
+                <span className="flex items-center gap-1">
+                  <span className={`h-1.5 w-1.5 rounded-full ${isOverdue ? "bg-red-500 animate-ping" : "bg-[#d4af37]"}`}></span>
+                  Timer status:
+                </span>
+                <span className={`font-bold font-mono ${isOverdue ? "text-red-500 font-black animate-pulse" : "text-stone-800"}`}>
+                  {elapsedMins} / {kot.preparationTime || 15} min elapsed
+                </span>
+              </div>
+              <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-1000 ${
+                    isOverdue ? "bg-red-500 animate-pulse" : "bg-[#d4af37]"
+                  }`}
+                  style={{ width: `${Math.min((elapsedMins / (kot.preparationTime || 15)) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Operational Flow Action Buttons */}
+          <div className="flex items-center gap-1 bg-stone-50 p-1.5 rounded-xl border border-stone-100">
+            {/* Reprint Spool button */}
+            <button
+              type="button"
+              onClick={() => setPreviewKOT(kot)}
+              title="Inspect thermal ticket preview modal"
+              className="p-1 px-2 border border-stone-200 hover:border-[#d4af37] text-stone-500 hover:text-[#d4af37] bg-white rounded-lg transition-all cursor-pointer active:scale-95"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePhysicalPrintSystem(kot)}
+              title="System Hardcopy Receipt"
+              className="p-1 px-2 border border-stone-200 hover:border-stone-400 text-stone-700 bg-white rounded-lg transition-all cursor-pointer active:scale-95"
+            >
+              <Printer className="w-3.5 h-3.5 text-stone-600" />
+            </button>
+
+            {kot.status === "New Order" && (
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(kot.id, "Accepted")}
+                className="flex-grow py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+              >
+                <Check className="w-3 h-3" />
+                Accept
+              </button>
+            )}
+
+            {kot.status === "Accepted" && (
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(kot.id, "Preparing")}
+                className="flex-grow py-1 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 text-center font-bold"
+              >
+                <Play className="w-3 h-3" />
+                Start Cook
+              </button>
+            )}
+
+            {kot.status === "Preparing" && (
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(kot.id, "Ready")}
+                className="flex-grow py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+              >
+                <CheckCircle className="w-3 h-3" />
+                Food Ready
+              </button>
+            )}
+
+            {kot.status === "Ready" && (
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(kot.id, "Served")}
+                className="flex-grow py-1 bg-stone-800 hover:bg-stone-900 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+              >
+                <UtensilsCrossed className="w-3 h-3" />
+                Serve
+              </button>
+            )}
+
+            {/* Cancel button */}
+            {kot.status !== "Served" && kot.status !== "Cancelled" && (
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(kot.id, "Cancelled")}
+                title="Cancel Culinary Ticket"
+                className="p-1 px-1.5 border border-red-200 hover:bg-red-50 text-red-500 rounded-lg transition-all cursor-pointer active:scale-95"
+              >
+                <Ban className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 }

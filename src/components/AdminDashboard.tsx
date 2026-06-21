@@ -3,13 +3,14 @@ import {
   BarChart3, ShoppingCart, Utensils, Users, Landmark, Ticket, 
   MessageSquare, Package, ShieldCheck, Settings, LogOut, Check, X,
   Search, Plus, Filter, Download, Info, Trash2, Edit2, AlertCircle, 
-  Activity, Star, Sparkles, Volume2, VolumeX, Printer, CheckCircle
+  Activity, Star, Sparkles, Volume2, VolumeX, Printer, CheckCircle, QrCode
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } from "../lib/db";
-import { MenuItem } from "../types";
+import { MenuItem, RestaurantTable } from "../types";
 import KitchenDashboard from "./KitchenDashboard";
 import WaiterDashboard from "./WaiterDashboard";
+import SupabaseDiagnostics from "../pages/admin/SupabaseDiagnostics";
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -17,7 +18,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "inventory" | "logs" | "settings" | "kitchen" | "waiter"
+    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "logs" | "settings" | "kitchen" | "waiter" | "tables" | "supabase"
   >("analytics");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -29,6 +30,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [reviews, setReviews] = useState<any[]>([]);
   const [settings, setSettings] = useState<RestaurantSettings>(() => LocalDB.getSettings());
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [tables, setTables] = useState<RestaurantTable[]>([]);
+  const [selectedTableForQr, setSelectedTableForQr] = useState<RestaurantTable | null>(null);
+  const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null);
+  const [newTableNo, setNewTableNo] = useState("");
+  const [newCapacity, setNewCapacity] = useState(4);
+  const [newArea, setNewArea] = useState("Main Dining Hall");
+  const [showAddTable, setShowAddTable] = useState(false);
 
   // Sound selection
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -77,6 +85,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       window.removeEventListener("new_order", handleNewOrderEvent);
     };
   }, []);
+
+  // Auto-select first table for preview
+  useEffect(() => {
+    if (tables.length > 0 && !selectedTableForQr) {
+      setSelectedTableForQr(tables[0]);
+    }
+  }, [tables, selectedTableForQr]);
 
   // background-polling interval for cross-session/cross-device synchronicity
   useEffect(() => {
@@ -160,6 +175,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       setAuditLogs(logs);
     } catch (_) {
       setAuditLogs(LocalDB.getAuditLogs());
+    }
+    try {
+      setTables(LocalDB.getTables());
+    } catch (_) {
+      // safe fallback
     }
   };
 
@@ -529,6 +549,75 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   };
 
+  // 7. Table QR Management Handlers
+  const handleAddTable = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTableNo) return;
+    
+    // Check if tableNumber already exists
+    if (tables.some(t => t.tableNumber === newTableNo)) {
+      alert(`Table ${newTableNo} already exists! Please use a unique number.`);
+      return;
+    }
+
+    const newTbl: RestaurantTable = {
+      id: `tbl-${Date.now()}`,
+      tableNumber: newTableNo,
+      capacity: newCapacity,
+      seatingArea: newArea,
+      status: "Available"
+    };
+
+    const updated = [...tables, newTbl];
+    LocalDB.saveTables(updated);
+    setTables(updated);
+    setSelectedTableForQr(newTbl);
+    
+    // Reset fields
+    setNewTableNo("");
+    setNewCapacity(4);
+    setShowAddTable(false);
+
+    try {
+      LocalDB.addAuditLog("Table Created", `Added restaurant Table #${newTbl.tableNumber} with capacity of ${newTbl.capacity}`, "Admin Panel");
+    } catch (_) {
+      // safe fallback if addAuditLog differs
+    }
+  };
+
+  const handleUpdateTableStatus = (tableId: string, status: "Available" | "Occupied" | "Reserved") => {
+    const updated = tables.map(t => t.id === tableId ? { ...t, status } : t);
+    LocalDB.saveTables(updated);
+    setTables(updated);
+    if (selectedTableForQr?.id === tableId) {
+      setSelectedTableForQr({ ...selectedTableForQr, status });
+    }
+    try {
+      LocalDB.addAuditLog("Table Status Updated", `Updated Table ID ${tableId} status to ${status}`, "Admin Panel");
+    } catch (_) {
+      // safe fallback
+    }
+  };
+
+  const handleDeleteTable = (tableId: string) => {
+    const tableToDelete = tables.find(t => t.id === tableId);
+    if (!tableToDelete) return;
+    if (!confirm(`Are you sure you want to delete Table #${tableToDelete.tableNumber}?`)) return;
+
+    const updated = tables.filter(t => t.id !== tableId);
+    LocalDB.saveTables(updated);
+    setTables(updated);
+    
+    if (selectedTableForQr?.id === tableId) {
+      setSelectedTableForQr(updated[0] || null);
+    }
+    try {
+      LocalDB.addAuditLog("Table Deleted", `Removed Table #${tableToDelete.tableNumber} from table list`, "Admin Panel");
+    } catch (_) {
+      // safe fallback
+    }
+  };
+
   // INTERACTIVE FILTERS
   // Filtered orders list
   const filteredOrders = useMemo(() => {
@@ -674,7 +763,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <SidebarBtn icon={<Landmark />} label="Revenue Insights" active={activeTab === "revenue"} onClick={() => setActiveTab("revenue")} />
             <SidebarBtn icon={<Ticket />} label="Promo Coupons" active={activeTab === "coupons"} onClick={() => setActiveTab("coupons")} />
             <SidebarBtn icon={<MessageSquare />} label="Guest Reviews" active={activeTab === "reviews"} count={reviews.filter(r => !r.approved).length} onClick={() => setActiveTab("reviews")} />
-            <SidebarBtn icon={<Package />} label="Ingredient Stock" active={activeTab === "inventory"} count={lowStockItems.length} alertColor="bg-[#aa7c11]" onClick={() => setActiveTab("inventory")} />
+            <SidebarBtn icon={<QrCode />} label="Table QR Codes" active={activeTab === "tables"} onClick={() => setActiveTab("tables")} />
             
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">OPERATOR VIEWS & KOT</p>
             <SidebarBtn icon={<Utensils />} label="Kitchen Display (KDS)" active={activeTab === "kitchen"} onClick={() => setActiveTab("kitchen")} />
@@ -683,6 +772,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">SECURITY & PARAMS</p>
             <SidebarBtn icon={<ShieldCheck />} label="Audit Log Ledger" active={activeTab === "logs"} onClick={() => setActiveTab("logs")} />
             <SidebarBtn icon={<Settings />} label="Portal Settings" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
+            <SidebarBtn icon={<Activity />} label="Supabase Cloud Audit" active={activeTab === "supabase"} onClick={() => setActiveTab("supabase")} />
           </div>
 
           {/* Quick legal credentials */}
@@ -706,11 +796,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 {activeTab === "revenue" && <Landmark className="w-4 h-4" />}
                 {activeTab === "coupons" && <Ticket className="w-4 h-4" />}
                 {activeTab === "reviews" && <MessageSquare className="w-4 h-4" />}
-                {activeTab === "inventory" && <Package className="w-4 h-4" />}
                 {activeTab === "logs" && <ShieldCheck className="w-4 h-4" />}
                 {activeTab === "settings" && <Settings className="w-4 h-4" />}
                 {activeTab === "kitchen" && <Utensils className="w-4 h-4" />}
                 {activeTab === "waiter" && <Users className="w-4 h-4" />}
+                {activeTab === "tables" && <QrCode className="w-4 h-4" />}
+                {activeTab === "supabase" && <Activity className="w-4 h-4" />}
               </span>
               <div>
                 <span className="text-[8px] text-stone-400 font-mono uppercase block leading-none">CURRENT BOARD</span>
@@ -722,11 +813,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   {activeTab === "revenue" && "Financial Audits"}
                   {activeTab === "coupons" && "Promotion Codes"}
                   {activeTab === "reviews" && "Review Approvals"}
-                  {activeTab === "inventory" && "Stock Counter"}
                   {activeTab === "logs" && "Audit Security Ledger"}
                   {activeTab === "settings" && "Portal Settings"}
                   {activeTab === "kitchen" && "Kitchen Tickets (KDS)"}
                   {activeTab === "waiter" && "Waiter Service"}
+                  {activeTab === "tables" && "Table QR Codes Manager"}
+                  {activeTab === "supabase" && "Supabase Connectivity Audit"}
                 </span>
               </div>
             </div>
@@ -757,11 +849,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <MobileGridBtn id="revenue" label="Earnings" active={activeTab === "revenue"} icon={<Landmark />} onClick={() => { setActiveTab("revenue"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="coupons" label="Promo Cards" active={activeTab === "coupons"} icon={<Ticket />} onClick={() => { setActiveTab("coupons"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="reviews" label="Reviews" active={activeTab === "reviews"} count={reviews.filter(r => !r.approved).length} icon={<MessageSquare />} onClick={() => { setActiveTab("reviews"); setIsMobileMenuOpen(false); }} />
-                  <MobileGridBtn id="inventory" label="Stocks Alert" active={activeTab === "inventory"} count={lowStockItems.length} alertColor="bg-[#aa7c11]" icon={<Package />} onClick={() => { setActiveTab("inventory"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="logs" label="Audit Logs" active={activeTab === "logs"} icon={<ShieldCheck />} onClick={() => { setActiveTab("logs"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="settings" label="Portal Config" active={activeTab === "settings"} icon={<Settings />} onClick={() => { setActiveTab("settings"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="kitchen" label="Kitchen KDS" active={activeTab === "kitchen"} icon={<Utensils />} onClick={() => { setActiveTab("kitchen"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="waiter" label="Waiter Desk" active={activeTab === "waiter"} icon={<Users />} onClick={() => { setActiveTab("waiter"); setIsMobileMenuOpen(false); }} />
+                  <MobileGridBtn id="tables" label="Table QRs" active={activeTab === "tables"} icon={<QrCode />} onClick={() => { setActiveTab("tables"); setIsMobileMenuOpen(false); }} />
+                  <MobileGridBtn id="supabase" label="Supa Audit" active={activeTab === "supabase"} icon={<Activity />} onClick={() => { setActiveTab("supabase"); setIsMobileMenuOpen(false); }} />
                 </div>
               </motion.div>
             )}
@@ -1467,64 +1560,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </motion.div>
             )}
 
-            {/* TAB CONTENT: INGREDIENT INVENTORY STOCKS */}
-            {activeTab === "inventory" && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                
-                {/* Title */}
-                <div className="flex flex-col gap-1">
-                  <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider">Ingredient Stock Track</h2>
-                  <p className="text-xs text-stone-500 font-sans">Monitor raw material allocations. Restock low vegetables or grains before dinner rush.</p>
-                </div>
-
-                {/* Stock tracker Table */}
-                <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden p-6 shadow-sm">
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse font-sans text-xs">
-                      <thead>
-                        <tr className="bg-stone-50 border-b border-stone-200 text-stone-505 font-bold uppercase tracking-wider text-left text-[10px]">
-                          <th className="p-3.5 font-bold">Material</th>
-                          <th className="p-3.5 font-bold mr-2">Stock Category</th>
-                          <th className="p-3.5 text-center font-bold">Remaining Stock</th>
-                          <th className="p-3.5 font-bold">Reorder Limit</th>
-                          <th className="p-3.5 font-bold">Last Restocked</th>
-                          <th className="p-3.5 text-right font-bold">Quick Refills</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-stone-105 text-stone-700">
-                        {inventory.map((item) => (
-                          <tr key={item.id} className="hover:bg-stone-50/40 transition-colors">
-                            <td className="p-3.5 font-bold text-stone-900">{item.name}</td>
-                            <td className="p-3.5 text-stone-500 font-sans">{item.category}</td>
-                            <td className="p-3.5 text-center">
-                              <span className={`px-2.5 py-1 rounded text-xs font-bold font-mono ${item.stock <= item.minAlertLevel ? "bg-red-50 text-red-600 border border-red-200" : "bg-stone-100 text-stone-700 border border-stone-200/50"}`}>
-                                {item.stock} {item.unit}
-                              </span>
-                            </td>
-                            <td className="p-3.5 text-stone-400 font-mono">Alert &lt;= {item.minAlertLevel} {item.unit}</td>
-                            <td className="p-3.5 text-stone-400 font-mono">{item.lastRestocked}</td>
-                            <td className="p-3.5 text-right">
-                              <button
-                                onClick={() => {
-                                  setSelectedInventoryItem(item);
-                                  setRestockAmount(15);
-                                  setShowRestockModal(true);
-                                }}
-                                className="px-2.5 py-1.5 bg-[#FAF6F0] hover:bg-[#C67C4E] text-[#C67C4E] hover:text-white font-bold text-[10px] rounded-lg border border-[#C67C4E]/20 hover:border-transparent tracking-wider uppercase transition-colors cursor-pointer"
-                              >
-                                Refill stock
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-              </motion.div>
-            )}
-
             {/* TAB CONTENT: SECURITY AUDIT LOGS */}
             {activeTab === "logs" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -1672,6 +1707,318 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {activeTab === "waiter" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
                 <WaiterDashboard />
+              </motion.div>
+            )}
+
+            {/* TAB CONTENT: TABLES & QR CODES */}
+            {activeTab === "tables" && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
+                
+                {/* Descriptive Top Panel Card */}
+                <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-serif font-bold text-stone-900 uppercase tracking-wide">Table QR Self-Ordering Engine</h3>
+                    <p className="text-xs text-stone-500 font-sans font-light leading-relaxed max-w-2xl">
+                      Generate unique, secure table QR codes. Guests simply scan their table's code, which automatically opens the digital menu, locks their table location, and enables direct checkout.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowAddTable(true);
+                    }}
+                    className="px-4 py-2.5 bg-stone-900 hover:bg-stone-850 text-white font-mono font-semibold text-[11px] tracking-widest uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start md:self-auto border border-stone-900"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Deploy New Table</span>
+                  </button>
+                </div>
+
+                {/* Main Two-Column split Workspace */}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                  
+                  {/* Left Column (7/12 widths): Table Floorplan list */}
+                  <div className="xl:col-span-7 bg-white p-5 rounded-2xl border border-stone-200 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col gap-4">
+                    <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                      <h4 className="text-xs font-mono font-bold text-stone-400 uppercase tracking-widest">Active Table Directory ({tables.length})</h4>
+                      <span className="text-[10px] font-mono text-stone-500 bg-stone-105 px-2 py-0.5 rounded-full">
+                        {tables.filter(t => t.status === "Available").length} Ready For Seating
+                      </span>
+                    </div>
+
+                    {/* Table Bento List */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {tables.map((table) => {
+                        const isSelected = selectedTableForQr?.id === table.id;
+                        return (
+                          <div
+                            key={table.id}
+                            onClick={() => setSelectedTableForQr(table)}
+                            className={`p-4 rounded-xl border transition-all cursor-pointer text-left space-y-2 relative flex flex-col justify-between ${
+                              isSelected
+                                ? "border-[#d4af37] bg-amber-50/20 shadow-sm"
+                                : "border-stone-200 hover:border-stone-300 bg-stone-50/20"
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full border ${
+                                  table.status === "Available"
+                                    ? "bg-green-50 text-green-700 border-green-100"
+                                    : table.status === "Occupied"
+                                    ? "bg-amber-50 text-amber-700 border-amber-100"
+                                    : "bg-stone-50 text-stone-500 border-stone-200"
+                                }`}>
+                                  {table.status}
+                                </span>
+                                <span className="text-[9px] font-mono text-stone-400">
+                                  🪑 {table.capacity} Pax
+                                </span>
+                              </div>
+                              <h5 className="font-serif font-bold text-stone-900 text-base mt-2">
+                                Table #{table.tableNumber}
+                              </h5>
+                              <p className="text-[10px] text-stone-400 font-sans truncate">
+                                {table.seatingArea}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-stone-100 mt-2">
+                              {/* Status Quick changer */}
+                              <select
+                                value={table.status}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => handleUpdateTableStatus(table.id, e.target.value as any)}
+                                className="text-[9px] bg-transparent text-stone-600 border border-stone-200 rounded p-1"
+                              >
+                                <option value="Available">Available</option>
+                                <option value="Occupied">Occupied</option>
+                                <option value="Reserved">Reserved</option>
+                              </select>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteTable(table.id);
+                                }}
+                                className="p-1 hover:text-red-500 hover:bg-red-50 text-stone-400 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Table"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Right Column (5/12 width): Table QR Code Viewer & Frame Stand Generator */}
+                  <div className="xl:col-span-5 flex flex-col gap-6">
+                    {selectedTableForQr ? (
+                      <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-5 text-center flex flex-col items-center">
+                        <div className="border-b border-stone-100 pb-3 w-full text-left flex items-center justify-between">
+                          <h4 className="text-xs font-mono font-bold text-stone-400 uppercase tracking-widest">QR Framing Stand</h4>
+                          <span className="text-[10px] font-mono bg-stone-950 text-stone-100 px-2 py-0.5 rounded-md uppercase">
+                            Premium Stand
+                          </span>
+                        </div>
+
+                        {/* Interactive URL frame code value generator */}
+                        {(() => {
+                          const tableNoStr = selectedTableForQr.tableNumber;
+                          const qrLink = `${window.location.origin}${window.location.pathname}?table=${encodeURIComponent(tableNoStr)}`;
+                          const googleQrApi = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrLink)}&qzone=1`;
+
+                          return (
+                            <div className="w-full flex flex-col items-center gap-4">
+                              
+                              {/* Decorative Table Stand Mockup Frame */}
+                              <div className="bg-[#FAF9F5] border-4 border-stone-900 rounded-3xl p-5 w-full max-w-[280px] shadow-lg flex flex-col items-center space-y-4 relative">
+                                <span className="absolute top-3 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-stone-900 rounded-full"></span>
+                                
+                                <div className="text-stone-900 font-serif font-extrabold uppercase text-xs tracking-wider border-b border-stone-200 pb-1.5 w-full text-center">
+                                  Sagar Ratna Vegetarian
+                                </div>
+
+                                <div className="p-3 bg-white rounded-2xl border-2 border-stone-900/10 shadow-inner flex items-center justify-center">
+                                  <img
+                                    src={googleQrApi}
+                                    alt={`Table ${tableNoStr} QR Code`}
+                                    referrerPolicy="no-referrer"
+                                    className="w-40 h-40 object-contain"
+                                  />
+                                </div>
+
+                                <div className="space-y-1 text-center">
+                                  <div className="text-[10px] font-mono text-amber-800 tracking-widest font-bold uppercase">
+                                    DINE-IN ORDERING PORTAL
+                                  </div>
+                                  <div className="font-serif font-black text-2xl text-stone-950 uppercase">
+                                    Table #{tableNoStr}
+                                  </div>
+                                  <p className="text-[9px] text-stone-500 leading-normal max-w-[190px] mx-auto font-sans">
+                                    Scan QR with your smartphone camera to browse menu, select dishes, & order instantly!
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Action Items for QR Stand */}
+                              <div className="w-full space-y-2 mt-2">
+                                <div className="p-3 bg-stone-50 rounded-xl text-left border border-stone-250/50 font-mono space-y-1">
+                                  <span className="text-[8px] text-stone-400 block uppercase font-bold">Encrypted Web Address:</span>
+                                  <span className="text-[10px] text-stone-700 block select-all break-all leading-tight bg-white p-1.5 rounded border border-stone-150">
+                                    {qrLink}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <a
+                                    href={googleQrApi}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3.5 py-2.5 bg-stone-900 hover:bg-stone-850 text-white font-mono font-bold text-[10px] tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 border border-stone-900"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                    <span>Download QR</span>
+                                  </a>
+                                  <button
+                                    onClick={() => {
+                                      // Native print trigger of QR Stand iframe block context
+                                      const printWin = window.open("", "_blank");
+                                      if (printWin) {
+                                        printWin.document.write(`
+                                          <html>
+                                            <head>
+                                              <title>Print Stand - Table ${tableNoStr}</title>
+                                              <style>
+                                                body { font-family: 'Georgia', serif; text-align: center; padding: 40px; background: #fff; }
+                                                .stand { border: 8px solid #000; border-radius: 40px; padding: 30px; display: inline-block; max-width: 400px; background: #faf9f5; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+                                                .header { text-transform: uppercase; font-size: 16px; font-weight: bold; margin-bottom: 25px; border-bottom: 3px solid #000; padding-bottom: 10px; }
+                                                .qr-container { padding: 20px; background: #fff; border-radius: 20px; border: 3px solid #000; display: inline-block; margin-bottom: 25px; }
+                                                .qr { width: 250px; height: 250px; }
+                                                .sub { font-size: 12px; color: #b45309; letter-spacing: 2px; font-weight: bold; margin-bottom: 5px; }
+                                                .table-num { font-size: 36px; font-weight: 900; margin: 10px 0; }
+                                                .desc { font-size: 11px; color: #555; max-width: 300px; margin: 0 auto; line-height: 1.5; }
+                                              </style>
+                                            </head>
+                                            <body>
+                                              <div class="stand">
+                                                <div class="header">SAGAR RATNA VEGETARIAN</div>
+                                                <div class="qr-container">
+                                                  <img class="qr" src="${googleQrApi}" />
+                                                </div>
+                                                <div class="sub">DINE-IN ORDERING PORTAL</div>
+                                                <div class="table-num">TABLE #${tableNoStr}</div>
+                                                <p class="desc">Scan this QR code with your smartphone camera to browse menu, select delicacies and order directly to your table!</p>
+                                              </div>
+                                              <script>
+                                                window.onload = function() { window.print(); window.close(); }
+                                              </script>
+                                            </body>
+                                          </html>
+                                        `);
+                                        printWin.document.close();
+                                      }
+                                    }}
+                                    className="px-3.5 py-2.5 bg-[#FAF9F5] hover:bg-stone-50 border border-stone-250 text-stone-850 font-mono font-bold text-[10px] tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1"
+                                  >
+                                    <Printer className="w-3 h-3" />
+                                    <span>Print Stand</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      <div className="bg-stone-50 p-12 text-center rounded-2xl border border-stone-205 text-stone-400 font-sans font-light">
+                        Select a table to review and download its dynamic self-ordering QR sheet or stand cardboard mockup.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Deploy New Table Modal Popup dialog */}
+                <AnimatePresence>
+                  {showAddTable && (
+                    <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="bg-white rounded-2xl border border-stone-200 shadow-xl max-w-sm w-full overflow-hidden"
+                      >
+                        <div className="bg-stone-900 text-white p-4 font-mono font-bold text-xs uppercase tracking-widest flex items-center justify-between">
+                          <span>DEPLOY NEW RESTAURANT TABLE</span>
+                          <button
+                            onClick={() => setShowAddTable(false)}
+                            className="text-stone-400 hover:text-white transition-colors cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <form onSubmit={handleAddTable} className="p-5 space-y-4">
+                          <div>
+                            <label className="text-[10px] text-stone-450 font-mono block mb-1 font-bold">TABLE IDENTIFIER/NUMBER *</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g., 9"
+                              value={newTableNo}
+                              onChange={(e) => setNewTableNo(e.target.value)}
+                              className="w-full bg-white text-stone-950 placeholder-stone-400 text-xs border border-stone-200 rounded-lg p-2.5 focus:outline-none focus:border-stone-900 transition-all font-sans"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] text-stone-450 font-mono block mb-1 font-bold">SEATING CAPACITY *</label>
+                            <select
+                              value={newCapacity}
+                              onChange={(e) => setNewCapacity(Number(e.target.value))}
+                              className="w-full bg-white text-stone-950 text-xs border border-stone-200 rounded-lg p-2.5 focus:outline-none focus:border-stone-900 transition-all font-sans"
+                            >
+                              <option value="2">2 Guests (Couple Seating)</option>
+                              <option value="4">4 Guests (Standard Box)</option>
+                              <option value="6">6 Guests (Family Table)</option>
+                              <option value="8">8 Guests (Large VIP Sofa)</option>
+                              <option value="12">12 Guests (Feast Suite)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] text-stone-450 font-mono block mb-1 font-bold">DINING AREA SECTION *</label>
+                            <select
+                              value={newArea}
+                              onChange={(e) => setNewArea(e.target.value)}
+                              className="w-full bg-white text-stone-950 text-xs border border-stone-200 rounded-lg p-2.5 focus:outline-none focus:border-stone-900 transition-all font-sans"
+                            >
+                              <option value="Main Dining Hall">Main Dining Hall</option>
+                              <option value="Window Alcove">Window Alcove</option>
+                              <option value="Family Suite">Family Suite</option>
+                              <option value="VIP Lounge">VIP Lounge</option>
+                              <option value="Balcony Area">Balcony Area</option>
+                              <option value="Courtyard Garden">Courtyard Garden</option>
+                            </select>
+                          </div>
+
+                          <button
+                            type="submit"
+                            className="w-full py-3 bg-[#d4af37] hover:bg-amber-600 text-stone-950 font-mono font-bold text-xs tracking-wider uppercase rounded-xl transition-all shadow-sm cursor-pointer border border-[#d4af37]"
+                          >
+                            AUTHORIZE AND LAUNCH TABLE
+                          </button>
+                        </form>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
+
+              </motion.div>
+            )}
+
+            {/* TAB CONTENT: SUPABASE DIAGNOSTICS */}
+            {activeTab === "supabase" && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
+                <SupabaseDiagnostics />
               </motion.div>
             )}
 

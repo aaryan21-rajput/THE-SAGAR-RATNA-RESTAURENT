@@ -66,3 +66,11 @@ export interface KOT {
     customization?: string;
   }[];
 }
+
+export interface RestaurantTable {
+  id: string;
+  tableNumber: string;
+  capacity: number;
+  seatingArea: string;
+  status: "Available" | "Occupied" | "Reserved";
+}

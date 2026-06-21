@@ -151,6 +151,10 @@ export default function App() {
     });
   };
 
+  const handleRemoveEntirelyFromCart = (item: MenuItem) => {
+    setCart((prevCart) => prevCart.filter((ci) => ci.menuItem.id !== item.id));
+  };
+
   const handleUpdateCustomization = (itemId: string, note: string) => {
     setCart((prevCart) =>
       prevCart.map((ci) =>
@@ -217,6 +221,7 @@ export default function App() {
         cart={cart}
         onAddToCart={handleAddToCart}
         onRemoveFromCart={handleRemoveFromCart}
+        onRemoveEntirelyFromCart={handleRemoveEntirelyFromCart}
         onUpdateCustomization={handleUpdateCustomization}
         onClearCart={handleClearCart}
         onAdminClick={() => {
@@ -368,6 +373,7 @@ export default function App() {
         cart={cart}
         onAddToCart={handleAddToCart}
         onRemoveFromCart={handleRemoveFromCart}
+        onRemoveEntirelyFromCart={handleRemoveEntirelyFromCart}
         onUpdateCustomization={handleUpdateCustomization}
         onClearCart={handleClearCart}
       />

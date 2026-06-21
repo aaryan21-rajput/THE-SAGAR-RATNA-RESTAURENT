@@ -1,4 +1,4 @@
-import { MenuItem, Review, KOT, KOTStatus, OrderItem } from "../types";
+import { MenuItem, Review, KOT, KOTStatus, OrderItem, RestaurantTable } from "../types";
 import { menuItems as defaultMenuItems, reviews as defaultReviews } from "../data";
 import { createClient } from "@supabase/supabase-js";
 
@@ -284,6 +284,32 @@ export class LocalDB {
     localStorage.setItem("sr_orders", JSON.stringify(orders));
     window.dispatchEvent(new Event("storage"));
   }
+
+  static getTables(): RestaurantTable[] {
+    const stored = localStorage.getItem("sr_tables");
+    if (!stored) {
+      const defaultTables: RestaurantTable[] = [
+        { id: "tbl-1", tableNumber: "1", capacity: 4, seatingArea: "Main Dining Hall", status: "Available" },
+        { id: "tbl-2", tableNumber: "2", capacity: 4, seatingArea: "Main Dining Hall", status: "Available" },
+        { id: "tbl-3", tableNumber: "3", capacity: 2, seatingArea: "Window Alcove", status: "Available" },
+        { id: "tbl-4", tableNumber: "4", capacity: 6, seatingArea: "Family Suite", status: "Available" },
+        { id: "tbl-5", tableNumber: "5", capacity: 8, seatingArea: "VIP Lounge", status: "Reserved" },
+        { id: "tbl-6", tableNumber: "6", capacity: 2, seatingArea: "Balcony", status: "Available" },
+        { id: "tbl-7", tableNumber: "7", capacity: 4, seatingArea: "Courtyard Garden", status: "Available" },
+        { id: "tbl-8", tableNumber: "8", capacity: 4, seatingArea: "Courtyard Garden", status: "Available" }
+      ];
+      localStorage.setItem("sr_tables", JSON.stringify(defaultTables));
+      return defaultTables;
+    }
+    return JSON.parse(stored);
+  }
+
+  static saveTables(tables: RestaurantTable[]): void {
+    localStorage.setItem("sr_tables", JSON.stringify(tables));
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("tables_updated"));
+  }
+
 
   static addOrder(order: Omit<Order, "id" | "createdAt">): Order {
     const orders = this.getOrders();
