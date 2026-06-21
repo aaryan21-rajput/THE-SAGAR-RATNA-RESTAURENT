@@ -257,13 +257,13 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
                   </div>
                   <h4 className="text-sm font-semibold text-stone-950 uppercase tracking-wider">Recovery Dispatch Successful</h4>
                   <p className="text-xs text-stone-600 max-w-sm mx-auto font-sans leading-relaxed">
-                    A cryptographic security code and recovery links have been sent to your owner WhatsApp and SMS: **+91-11-4560-4560**.
+                    A cryptographic security code and recovery links have been sent to your registered owner email and SMS: **+91-11-4560-4560**.
                   </p>
                 </div>
               ) : (
                 <form onSubmit={handleForgotPassword} className="space-y-4">
                   <p className="text-xs text-stone-500 leading-relaxed font-sans">
-                    Please provide the registered administrator email below. The system will dispatch a multi-factor passcode and reset instructions directly to the owner WhatsApp.
+                    Please provide the registered administrator email below. The system will dispatch a multi-factor passcode and reset instructions directly to your owner email security channel.
                   </p>
                   <div className="space-y-1.5 font-sans">
                     <label className="block text-[10px] font-mono text-stone-450 uppercase tracking-widest">

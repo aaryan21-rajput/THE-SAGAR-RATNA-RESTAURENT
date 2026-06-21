@@ -1450,7 +1450,7 @@ export const reviews: Review[] = [
     name: "Sneha Patel",
     rating: 5,
     date: "May 28, 2026",
-    comment: "Excellent food! Paneer Tikka pizza crust is perfect, and Chole Bhature are amazingly fluffy. Ordering via WhatsApp was super easy and fast. Highly recommended!",
+    comment: "Excellent food! Paneer Tikka pizza crust is perfect, and Chole Bhature are amazingly fluffy. Ordering online was super easy and fast. Highly recommended!",
     avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150"
   },
   {

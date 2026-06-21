@@ -74,3 +74,13 @@ export interface RestaurantTable {
   seatingArea: string;
   status: "Available" | "Occupied" | "Reserved";
 }
+
+export interface PrinterEmulatorLog {
+  id: string;
+  kotId: string;
+  kotNumber: string;
+  restaurantId: string;
+  receiptText: string;
+  printStatus: "Pending" | "Printing" | "Printed" | "Failed";
+  createdAt: string;
+}

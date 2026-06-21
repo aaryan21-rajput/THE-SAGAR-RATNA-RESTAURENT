@@ -77,9 +77,6 @@ export default function MobileView({
     null,
   );
 
-  // Quick Order dialog state for WhatsApp Floating click
-  const [showQuickOrder, setShowQuickOrder] = useState(false);
-
   // Cart Form input states
   const [userName, setUserName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -148,12 +145,6 @@ export default function MobileView({
     const timer = setTimeout(() => setIsLoading(false), 900);
     return () => clearTimeout(timer);
   }, []);
-
-  // WhatsApp Contact Information
-  const storedSettings = LocalDB.getSettings();
-  const restaurantWhatsAppNumber = storedSettings.whatsappNumber
-    ? storedSettings.whatsappNumber.replace(/[^0-9]/g, "")
-    : "919630013483";
 
   // Direct review slide intervals
   const reviewsData = [
@@ -378,41 +369,6 @@ export default function MobileView({
 
       const savedOrder = await LocalDB.apiAddOrder(orderData);
 
-      // Build the WhatsApp message link
-      let message = `*🍽️ NEW ORDER - SAGAR RATNA RESTAURANT*\n`;
-      message += `==============================\n\n`;
-      message += `🆔 *Order ID:* ${savedOrder.id}\n`;
-      message += `👤 *Name:* ${userName}\n`;
-      if (phoneNumber) message += `📞 *Phone:* ${phoneNumber}\n`;
-      message += `📍 *Order Type:* ${orderType.toUpperCase()}\n`;
-
-      if (orderType === "dine-in" && tableNumber) {
-        message += `🪑 *Table Number:* ${tableNumber}\n`;
-      } else if (orderType === "delivery" && address) {
-        message += `🏠 *Delivery Address:* ${address}\n`;
-      }
-
-      message += `\n*🛒 ITEMS ORDERED:*\n`;
-      message += `------------------------------\n`;
-      cart.forEach((item) => {
-        message += `• *${item.quantity}x* ${item.menuItem.name} *(₹${item.menuItem.price})*\n`;
-        if (item.customization) {
-          message += `  └ _Note: ${item.customization}_\n`;
-        }
-      });
-      message += `------------------------------\n`;
-      message += `Subtotal: ₹${subtotal}\n`;
-      message += `GST (5%): ₹${gst}\n`;
-      if (packagingCharge > 0)
-        message += `Packaging/Delivery: ₹${packagingCharge}\n`;
-      message += `*🔥 GRAND TOTAL: ₹${grandTotal}*\n\n`;
-      message += `🛋️ _Sent via Sagar Ratna Mobile Portal_`;
-
-      const encodedText = encodeURIComponent(message);
-      const whatsappUrl = `https://wa.me/${restaurantWhatsAppNumber}?text=${encodedText}`;
-
-      window.open(whatsappUrl, "_blank");
-
       setOrderPlaced(true);
       setShowOtpMobile(false);
       setOtpCodeMobile("");
@@ -430,17 +386,6 @@ export default function MobileView({
     } finally {
       setIsSubmittingMobile(false);
     }
-  };
-
-  const handleQuickWhatsAppQuery = (e: React.FormEvent) => {
-    e.preventDefault();
-    const targetQuery = `Hello Sagar Ratna, I would like to inquire about direct delivery slots and pure vegetarian catering prices.`;
-    const encoded = encodeURIComponent(targetQuery);
-    window.open(
-      `https://wa.me/${restaurantWhatsAppNumber}?text=${encoded}`,
-      "_blank",
-    );
-    setShowQuickOrder(false);
   };
 
   return (
@@ -1201,11 +1146,11 @@ export default function MobileView({
                   Order Dispatched!
                 </h3>
                 <p className="mt-2 text-xs text-stone-550 leading-relaxed font-sans max-w-xs">
-                  We have loaded your receipt and items directly to WhatsApp.
-                  Click send in chat to start cooking!
+                  Your order has been directly submitted to our live kitchen dashboard.
+                  Staff will prepare your delicious pure vegetarian dishes shortly!
                 </p>
                 <span className="mt-4 text-[10px] font-mono bg-stone-50 border border-stone-150 px-3 py-1 rounded text-stone-505">
-                  Connecting kitchen...
+                  Order registered successfully
                 </span>
               </div>
             ) : cart.length === 0 ? (
@@ -1532,7 +1477,7 @@ export default function MobileView({
                   <button
                     type="submit"
                     disabled={isSubmittingMobile}
-                    className="w-full mt-2 py-3.5 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-xl text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                    className="w-full mt-2 py-3.5 bg-stone-900 hover:bg-[#aa7c11] text-white font-bold rounded-xl text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                   >
                     <Send
                       className={`w-4 h-4 text-white fill-current ${isSubmittingMobile ? "animate-bounce" : ""}`}
@@ -1541,7 +1486,7 @@ export default function MobileView({
                       ? "RESERVING DISHES..."
                       : showOtpMobile
                         ? "VERIFY OTP & CONFIRM"
-                        : "Send Order on WhatsApp"}
+                        : "Place Order Online"}
                   </button>
                 </div>
               </form>
@@ -1571,22 +1516,19 @@ export default function MobileView({
                 </span>
               </a>
 
-              <a
-                href={`https://wa.me/${restaurantWhatsAppNumber}`}
-                target="_blank"
-                rel="noreferrer"
-                className="bg-white border border-stone-200 p-4 rounded-2xl flex flex-col items-center text-center justify-center space-y-2 shadow-sm"
+              <div
+                className="bg-white border border-stone-200 p-4 rounded-2xl flex flex-col items-center text-center justify-center space-y-2 shadow-sm focus:outline-none"
               >
-                <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-200 flex items-center justify-center">
-                  <MessageSquare className="w-5 h-5 text-green-600" />
+                <div className="w-10 h-10 rounded-xl bg-amber-50/80 border border-amber-200 flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-[#aa7c11]" />
                 </div>
                 <span className="text-xs font-bold text-stone-900">
-                  WhatsApp Direct
+                  Visit Venue
                 </span>
                 <span className="text-[10px] text-stone-500">
-                  Live Delivery
+                  Subhash Nagar, Delhi
                 </span>
-              </a>
+              </div>
             </div>
 
             {/* Timings and details list */}
@@ -1687,70 +1629,6 @@ export default function MobileView({
           </div>
         ),
       })}
-
-      {/* Slide-Up WhatsApp quick query helper requested */}
-      <AnimatePresence>
-        {showQuickOrder && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.4 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowQuickOrder(false)}
-              className="fixed inset-0 bg-black/60 z-50 backdrop-blur-xs"
-            />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed bottom-0 left-0 right-0 max-h-[80%] rounded-t-3xl bg-white border-t border-stone-200/80 z-50 p-6 space-y-4 shadow-2xl"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[#aa7c11]">
-                  <MessageSquare className="w-5 h-5 fill-current text-green-600" />
-                  <h3 className="font-serif font-bold text-stone-900 uppercase tracking-wide text-sm">
-                    WhatsApp Fast Inquiry
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setShowQuickOrder(false)}
-                  className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 hover:bg-stone-250 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <p className="text-xs text-stone-500 leading-relaxed font-light">
-                Directly chat with Sagar Ratna kitchen chefs to inquire about
-                special requests, catering pricing, or allergen parameters.
-              </p>
-
-              <form onSubmit={handleQuickWhatsAppQuery} className="space-y-4">
-                <button
-                  type="submit"
-                  className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 fill-current" /> Open
-                  WhatsApp Chat
-                </button>
-              </form>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Thumb-Friendly Sticky Floating WhatsApp Button */}
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setShowQuickOrder(true)}
-        className="fixed bottom-24 right-5 z-45 bg-[#25d366] text-white p-3 rounded-full shadow-lg border border-green-400/20 cursor-pointer flex items-center justify-center"
-        aria-label="Direct WhatsApp Delivery Query"
-        id="floating-whatsapp-trigger"
-      >
-        <MessageSquare className="w-6 h-6 fill-current text-white" />
-      </motion.button>
 
       {/* Floating Bottom Menu Cart Basket Trigger when Cart has items */}
       <AnimatePresence>

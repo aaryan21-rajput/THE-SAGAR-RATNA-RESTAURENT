@@ -9,7 +9,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } from "../lib/db";
 import { MenuItem, RestaurantTable } from "../types";
 import KitchenDashboard from "./KitchenDashboard";
-import WaiterDashboard from "./WaiterDashboard";
+import LiveKotMonitor from "./LiveKotMonitor";
+import VirtualPrinterCenter from "./VirtualPrinterCenter";
 import SupabaseDiagnostics from "../pages/admin/SupabaseDiagnostics";
 
 interface AdminDashboardProps {
@@ -18,7 +19,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "logs" | "settings" | "kitchen" | "waiter" | "tables" | "supabase"
+    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "logs" | "settings" | "kitchen" | "tables" | "supabase" | "virtual-printer"
   >("analytics");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -767,7 +768,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">OPERATOR VIEWS & KOT</p>
             <SidebarBtn icon={<Utensils />} label="Kitchen Display (KDS)" active={activeTab === "kitchen"} onClick={() => setActiveTab("kitchen")} />
-            <SidebarBtn icon={<Users />} label="Waiter Service" active={activeTab === "waiter"} onClick={() => setActiveTab("waiter")} />
+            <SidebarBtn icon={<Printer />} label="Virtual Printer" active={activeTab === "virtual-printer"} onClick={() => setActiveTab("virtual-printer")} />
 
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">SECURITY & PARAMS</p>
             <SidebarBtn icon={<ShieldCheck />} label="Audit Log Ledger" active={activeTab === "logs"} onClick={() => setActiveTab("logs")} />
@@ -799,9 +800,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 {activeTab === "logs" && <ShieldCheck className="w-4 h-4" />}
                 {activeTab === "settings" && <Settings className="w-4 h-4" />}
                 {activeTab === "kitchen" && <Utensils className="w-4 h-4" />}
-                {activeTab === "waiter" && <Users className="w-4 h-4" />}
                 {activeTab === "tables" && <QrCode className="w-4 h-4" />}
                 {activeTab === "supabase" && <Activity className="w-4 h-4" />}
+                {activeTab === "virtual-printer" && <Printer className="w-4 h-4" />}
               </span>
               <div>
                 <span className="text-[8px] text-stone-400 font-mono uppercase block leading-none">CURRENT BOARD</span>
@@ -816,9 +817,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   {activeTab === "logs" && "Audit Security Ledger"}
                   {activeTab === "settings" && "Portal Settings"}
                   {activeTab === "kitchen" && "Kitchen Tickets (KDS)"}
-                  {activeTab === "waiter" && "Waiter Service"}
                   {activeTab === "tables" && "Table QR Codes Manager"}
                   {activeTab === "supabase" && "Supabase Connectivity Audit"}
+                  {activeTab === "virtual-printer" && "Virtual KOT Printer Center"}
                 </span>
               </div>
             </div>
@@ -852,9 +853,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <MobileGridBtn id="logs" label="Audit Logs" active={activeTab === "logs"} icon={<ShieldCheck />} onClick={() => { setActiveTab("logs"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="settings" label="Portal Config" active={activeTab === "settings"} icon={<Settings />} onClick={() => { setActiveTab("settings"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="kitchen" label="Kitchen KDS" active={activeTab === "kitchen"} icon={<Utensils />} onClick={() => { setActiveTab("kitchen"); setIsMobileMenuOpen(false); }} />
-                  <MobileGridBtn id="waiter" label="Waiter Desk" active={activeTab === "waiter"} icon={<Users />} onClick={() => { setActiveTab("waiter"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="tables" label="Table QRs" active={activeTab === "tables"} icon={<QrCode />} onClick={() => { setActiveTab("tables"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="supabase" label="Supa Audit" active={activeTab === "supabase"} icon={<Activity />} onClick={() => { setActiveTab("supabase"); setIsMobileMenuOpen(false); }} />
+                  <MobileGridBtn id="virtual-printer" label="Virt Printer" active={activeTab === "virtual-printer"} icon={<Printer />} onClick={() => { setActiveTab("virtual-printer"); setIsMobileMenuOpen(false); }} />
                 </div>
               </motion.div>
             )}
@@ -1004,6 +1005,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </div>
 
                 </div>
+
+                {/* Live KOT Monitor Section */}
+                <LiveKotMonitor />
+
               </motion.div>
             )}
 
@@ -1606,7 +1611,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 {/* Title */}
                 <div className="flex flex-col gap-1">
                   <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider text-left">operating portal parameters</h2>
-                  <p className="text-xs text-stone-500 font-sans">Adjust delivery charges, WhatsApp targets, and address details.</p>
+                  <p className="text-xs text-stone-500 font-sans">Adjust delivery charges, support contact, and address details.</p>
                 </div>
 
                 {/* Form parameters */}
@@ -1629,16 +1634,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         type="text"
                         value={settings.contactNumber}
                         onChange={(e) => setSettings({ ...settings, contactNumber: e.target.value })}
-                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-sans"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">WHATSAPP DISPATCH TARGET NUMBER</label>
-                      <input
-                        type="text"
-                        value={settings.whatsappNumber}
-                        onChange={(e) => setSettings({ ...settings, whatsappNumber: e.target.value })}
                         className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-sans"
                       />
                     </div>
@@ -1700,13 +1695,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {activeTab === "kitchen" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
                 <KitchenDashboard />
-              </motion.div>
-            )}
-
-            {/* TAB CONTENT: WAITER DISPLAY */}
-            {activeTab === "waiter" && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
-                <WaiterDashboard />
               </motion.div>
             )}
 
@@ -2019,6 +2007,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {activeTab === "supabase" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
                 <SupabaseDiagnostics />
+              </motion.div>
+            )}
+
+            {/* TAB CONTENT: VIRTUAL PRINTER */}
+            {activeTab === "virtual-printer" && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
+                <VirtualPrinterCenter />
               </motion.div>
             )}
 

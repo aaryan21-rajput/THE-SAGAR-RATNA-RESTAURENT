@@ -242,7 +242,7 @@ export default function App() {
         <span className="text-[#d4af37]/40 hidden sm:block">•</span>
         <span className="hidden sm:inline">Taste That Brings You Back</span>
         <span className="text-[#d4af37]/40">•</span>
-        <span>WhatsApp Order Direct Delivery Cash On Delivery ready</span>
+        <span>Online Order Direct Delivery Cash On Delivery ready</span>
       </div>
 
       {/* Main Hero Header Filter Navigation */}
@@ -368,7 +368,7 @@ export default function App() {
         setView("admin");
       }} />
 
-      {/* Floating Checkout sync WhatsApp basket drawer overlay */}
+      {/* Floating Checkout sync online basket drawer overlay */}
       <CartOverlay
         cart={cart}
         onAddToCart={handleAddToCart}

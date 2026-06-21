@@ -1,4 +1,4 @@
-import { MenuItem, Review, KOT, KOTStatus, OrderItem, RestaurantTable } from "../types";
+import { MenuItem, Review, KOT, KOTStatus, OrderItem, RestaurantTable, PrinterEmulatorLog } from "../types";
 import { menuItems as defaultMenuItems, reviews as defaultReviews } from "../data";
 import { createClient } from "@supabase/supabase-js";
 
@@ -74,7 +74,6 @@ export interface AuditLog {
 export interface RestaurantSettings {
   name: string;
   contactNumber: string;
-  whatsappNumber: string;
   address: string;
   businessHours: string;
   deliveryCharges: number;
@@ -208,7 +207,6 @@ const defaultCoupons: Coupon[] = [
 const defaultSettings: RestaurantSettings = {
   name: "Sagar Ratna",
   contactNumber: "+91-96300-13483",
-  whatsappNumber: "+919630013483",
   address: "A-15, Subhash Nagar, Ring Road, Opposite Metro Pillar 122, New Delhi, Delhi 110027, India",
   businessHours: "11:00 AM - 11:30 PM DAILY",
   deliveryCharges: 25,
@@ -379,11 +377,6 @@ export class LocalDB {
       return defaultSettings;
     }
     const settings: RestaurantSettings = JSON.parse(stored);
-    if (settings.whatsappNumber === "+919876543210") {
-      settings.whatsappNumber = "+919630013483";
-      settings.contactNumber = "+91-96300-13483";
-      localStorage.setItem("sr_settings", JSON.stringify(settings));
-    }
     return settings;
   }
 
@@ -941,7 +934,6 @@ export class LocalDB {
       const mapped: RestaurantSettings = {
         name: item.name || "Sagar Ratna",
         contactNumber: item.contact_number || "+91-96300-13483",
-        whatsappNumber: item.whatsapp_number || "+919630013483",
         address: item.address || "",
         businessHours: item.business_hours || "11:00 AM - 11:30 PM DAILY",
         deliveryCharges: Number(item.delivery_charges || 25),
@@ -964,7 +956,6 @@ export class LocalDB {
       id: "singleton-config", // Keep simple single row config
       name: settings.name,
       contact_number: settings.contactNumber,
-      whatsapp_number: settings.whatsappNumber,
       address: settings.address,
       business_hours: settings.businessHours,
       delivery_charges: Number(settings.deliveryCharges || 0),
@@ -1224,6 +1215,84 @@ export class LocalDB {
     } catch (err) {
       console.error("[Supabase OrderItems connection failed]", err);
     }
+  }
+
+  static getPrinterLogs(): PrinterEmulatorLog[] {
+    const stored = localStorage.getItem("sr_printer_logs");
+    if (!stored) {
+      localStorage.setItem("sr_printer_logs", JSON.stringify([]));
+      return [];
+    }
+    return JSON.parse(stored);
+  }
+
+  static savePrinterLogs(logs: PrinterEmulatorLog[]): void {
+    localStorage.setItem("sr_printer_logs", JSON.stringify(logs));
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("printer_logs_updated"));
+  }
+
+  static async fetchPrinterLogs(): Promise<PrinterEmulatorLog[]> {
+    try {
+      const { data, error } = await supabase
+        .from("printer_emulator_logs")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.warn("[Supabase] 'printer_emulator_logs' table select error:", error);
+        return this.getPrinterLogs();
+      }
+
+      const mapped: PrinterEmulatorLog[] = (data || []).map((item: any) => ({
+        id: item.id,
+        kotId: item.kot_id,
+        kotNumber: item.kot_number,
+        restaurantId: item.restaurant_id,
+        receiptText: item.receipt_text,
+        printStatus: item.print_status,
+        createdAt: item.created_at
+      }));
+
+      this.savePrinterLogs(mapped);
+      return mapped;
+    } catch (err) {
+      console.error("[Supabase fetchPrinterLogs failure]:", err);
+      return this.getPrinterLogs();
+    }
+  }
+
+  static async apiAddPrinterLog(log: Omit<PrinterEmulatorLog, "id" | "createdAt">): Promise<PrinterEmulatorLog> {
+    const logs = this.getPrinterLogs();
+    const newId = `PRT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const fullLog: PrinterEmulatorLog = {
+      ...log,
+      id: newId,
+      createdAt: new Date().toISOString()
+    };
+
+    const payload = {
+      id: fullLog.id,
+      kot_id: fullLog.kotId,
+      kot_number: fullLog.kotNumber,
+      restaurant_id: fullLog.restaurantId,
+      receipt_text: fullLog.receiptText,
+      print_status: fullLog.printStatus,
+      created_at: fullLog.createdAt
+    };
+
+    try {
+      const { error } = await supabase.from("printer_emulator_logs").insert(payload);
+      if (error) {
+        console.error("[Supabase insertion printer_emulator_logs failed]", error);
+      }
+    } catch (err) {
+      console.error("[Supabase connection printer_emulator_logs failed]", err);
+    }
+
+    logs.unshift(fullLog);
+    this.savePrinterLogs(logs);
+    return fullLog;
   }
 }
 

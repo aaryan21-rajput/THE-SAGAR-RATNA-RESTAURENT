@@ -157,46 +157,6 @@ export default function CartOverlay({
       // Ensure save is fully acknowledged and confirmed by the server first
       const savedOrder = await LocalDB.apiAddOrder(orderData);
 
-      // Build the WhatsApp message link
-      const storedSettings = LocalDB.getSettings();
-      const restaurantNumber = storedSettings.whatsappNumber
-        ? storedSettings.whatsappNumber.replace(/[^0-9]/g, "")
-        : "919630013483";
-      let message = `*🍽️ NEW ORDER - SAGAR RATNA RESTAURANT*\n`;
-      message += `==============================\n\n`;
-      message += `🆔 *Order ID:* ${savedOrder.id}\n`;
-      message += `👤 *Name:* ${userName}\n`;
-      if (phoneNumber) message += `📞 *Phone:* ${phoneNumber}\n`;
-      message += `📍 *Order Type:* ${orderType.toUpperCase()}\n`;
-
-      if (orderType === "dine-in" && tableNumber) {
-        message += `🪑 *Table Number:* ${tableNumber}\n`;
-      } else if (orderType === "delivery" && address) {
-        message += `🏠 *Delivery Address:* ${address}\n`;
-      }
-
-      message += `\n*🛒 ITEMS ORDERED:*\n`;
-      message += `------------------------------\n`;
-      cart.forEach((item) => {
-        message += `• *${item.quantity}x* ${item.menuItem.name} *(₹${item.menuItem.price})*\n`;
-        if (item.customization) {
-          message += `  └ _Note: ${item.customization}_\n`;
-        }
-      });
-      message += `------------------------------\n`;
-      message += `Subtotal: ₹${subtotal}\n`;
-      message += `GST (5%): ₹${gst}\n`;
-      if (packagingCharge > 0)
-        message += `Packaging/Delivery: ₹${packagingCharge}\n`;
-      message += `*🔥 GRAND TOTAL: ₹${grandTotal}*\n\n`;
-      message += `🛋️ _Sent via Sagar Ratna Digital Portal_`;
-
-      const encodedText = encodeURIComponent(message);
-      const whatsappUrl = `https://wa.me/${restaurantNumber}?text=${encodedText}`;
-
-      // Open WhatsApp link
-      window.open(whatsappUrl, "_blank");
-
       // Show custom success screen, then reset
       setOrderPlaced(true);
       setShowOtpVerification(false);
@@ -308,12 +268,12 @@ export default function CartOverlay({
                     Order Prepared!
                   </h3>
                   <p className="mt-2 text-sm text-stone-500 leading-relaxed font-sans">
-                    We've redirected you with a compiled receipt to WhatsApp.
-                    Sagar Ratna staff will finalize details shortly.
+                    Your order has been directly submitted to our live kitchen dashboard.
+                    Sagar Ratna staff will prepare and serve your meals shortly.
                   </p>
                   <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-stone-100 rounded-xl text-[11px] font-mono text-stone-500 border border-stone-200">
-                    <MessageSquare className="w-4 h-4 text-green-600 animate-pulse" />
-                    Connecting to kitchen dispatch...
+                    <CheckCircle2 className="w-4 h-4 text-[#d4af37] animate-pulse" />
+                    Kitchen dispatched successfully
                   </div>
                 </div>
               ) : cart.length === 0 ? (
@@ -649,7 +609,7 @@ export default function CartOverlay({
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full mt-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-green-950/20 flex items-center justify-center gap-2.5 transition-all cursor-pointer focus:outline-none disabled:opacity-60 disabled:cursor-wait"
+                      className="w-full mt-2 bg-stone-900 hover:bg-[#c67c4e] text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-stone-950/10 flex items-center justify-center gap-2.5 transition-all cursor-pointer focus:outline-none disabled:opacity-60 disabled:cursor-wait"
                       id="checkout-submit-btn"
                     >
                       <Send
@@ -659,11 +619,10 @@ export default function CartOverlay({
                         ? "RESERVING DISHES IN KITCHEN..."
                         : showOtpVerification
                           ? "VERIFY OTP & CONFIRM ORDER"
-                          : "ORDER WITH WHATSAPP"}
+                          : "PLACE ORDER ONLINE"}
                     </button>
                     <p className="text-[10px] text-gray-500 text-center font-sans tracking-wide">
-                      Clicking registers your cart items and starts immediate
-                      kitchen chat.
+                      Clicking registers your cart items directly inside our kitchen queue.
                     </p>
                   </div>
                 </form>
