@@ -475,6 +475,17 @@ export class LocalDB {
   }
 
   static async apiAddOrder(order: Omit<Order, "id" | "createdAt">): Promise<Order> {
+    // Core boundary validation for Table QR code source
+    if (order.orderType === "dine-in") {
+      if (!order.tableNumber) {
+        throw new Error("Missing Table Number: Dine-In checkout requires a scanned table QR source.");
+      }
+      const validTables = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+      if (!validTables.includes(order.tableNumber)) {
+        throw new Error(`Invalid QR Code Source: Table number #${order.tableNumber} is not registered in our dining area.`);
+      }
+    }
+
     const orders = this.getOrders();
     const newId = `SR-${1000 + orders.length + Math.floor(Math.random() * 100)}`;
     const kotCount = this.getKOTs().length + 1;

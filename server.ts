@@ -281,6 +281,17 @@ async function startServer() {
         return res.status(400).json({ error: "Shopping cart selection is empty. Order rejected." });
       }
 
+      // 1b. Table QR Validation for Dine-In
+      if (orderData.orderType === "dine-in") {
+        if (!orderData.tableNumber) {
+          return res.status(400).json({ error: "Missing Table Number: Dine-In checkout requires a scanned table QR source." });
+        }
+        const validTables = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+        if (!validTables.includes(orderData.tableNumber)) {
+          return res.status(400).json({ error: `Invalid QR Code Source: Table number #${orderData.tableNumber} is not registered in our dining area.` });
+        }
+      }
+
       // 2. Duplicate Check
       const now = Date.now();
       const isDuplicate = db.orders.find((o: any) => {

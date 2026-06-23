@@ -43,15 +43,26 @@ export default function CartOverlay({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  // Pre-fill table number from scanned table URL parameters
+  // Pre-fill table number from scanned table URL parameters with page refresh persistence
   React.useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const tableVal = params.get("table") || params.get("t");
+      let tableVal = params.get("table") || params.get("t");
+      
+      if (tableVal) {
+        localStorage.setItem("sr_scanned_table", tableVal);
+        localStorage.setItem("sr_is_qr_scanned", "true");
+      } else {
+        tableVal = localStorage.getItem("sr_scanned_table");
+      }
+
       if (tableVal) {
         setTableNumber(tableVal);
         setOrderType("dine-in");
         setIsQrScanned(true);
+      } else {
+        setTableNumber("");
+        setIsQrScanned(false);
       }
     } catch (e) {
       // safe fallback
@@ -104,6 +115,21 @@ export default function CartOverlay({
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userName.trim()) return;
+
+    // Validate table number for Dine-In orders
+    if (orderType === "dine-in") {
+      const storedTable = localStorage.getItem("sr_scanned_table");
+      if (!tableNumber || tableNumber !== storedTable) {
+        setCheckoutError("Validation failed: Table number must match the scanned QR code source. Please scan a table QR code to proceed.");
+        return;
+      }
+      
+      const validTables = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+      if (!validTables.includes(tableNumber)) {
+        setCheckoutError(`Invalid Table QR: #${tableNumber} is not a valid active table. Please scan a registered table QR.`);
+        return;
+      }
+    }
 
     if (!showOtpVerification) {
       // Security Gate: generate and intercept with OTP
@@ -526,7 +552,14 @@ export default function CartOverlay({
                                 <label className="text-[10px] text-stone-400 font-mono block mb-1 font-bold">
                                   RESTAURANT TABLE NO *
                                 </label>
-                                {isQrScanned && (
+                                {!tableNumber ? (
+                                  <div className="bg-red-50 border border-red-200 p-2.5 rounded-xl text-xs text-red-805 flex items-center gap-2 mb-1.5 shadow-xs font-sans">
+                                    <span className="h-2 w-2 rounded-full bg-red-550 animate-pulse"></span>
+                                    <span>
+                                      No valid table detected. Scanned Table QR Code is strictly required to place a Dine-In order.
+                                    </span>
+                                  </div>
+                                ) : (
                                   <div className="bg-amber-50 border border-amber-200/60 p-2.5 rounded-xl text-[10.5px] text-[#aa7c11] font-sans flex items-center gap-2 mb-1.5 shadow-xs">
                                     <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
                                     <span>
@@ -539,12 +572,10 @@ export default function CartOverlay({
                                 <input
                                   type="text"
                                   required
-                                  placeholder="e.g., Table 4"
-                                  value={tableNumber}
-                                  onChange={(e) =>
-                                    setTableNumber(e.target.value)
-                                  }
-                                  className="w-full bg-white text-stone-900 placeholder-stone-450 text-xs border border-stone-200 rounded-lg p-2.5 focus:outline-none focus:border-[#d4af37] transition-all font-sans text-stone-850"
+                                  readOnly
+                                  placeholder="⚠️ Scan table QR to detect"
+                                  value={tableNumber ? `Table #${tableNumber}` : ""}
+                                  className="w-full bg-stone-100 text-stone-505 font-bold placeholder-stone-400 text-xs border border-stone-200 rounded-lg p-2.5 outline-none cursor-not-allowed select-none font-sans"
                                 />
                               </motion.div>
                             )}
