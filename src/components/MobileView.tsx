@@ -157,6 +157,31 @@ export default function MobileView({
     return () => clearTimeout(timer);
   }, []);
 
+  // User Profile Order Tracking
+  const [pastOrdersMobile, setPastOrdersMobile] = useState<any[]>(() => LocalDB.getOrders());
+
+  useEffect(() => {
+    const handleSync = () => {
+      setPastOrdersMobile(LocalDB.getOrders());
+    };
+    window.addEventListener("new_order", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("new_order", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, []);
+
+  const handleReorderMobile = (order: any) => {
+    order.items.forEach((item: any) => {
+      const menuItem = menuList.find((m) => m.id === item.menuItemId);
+      if (menuItem) {
+        onAddToCart(menuItem);
+      }
+    });
+    setActiveTab("cart");
+  };
+
   // Direct review slide intervals
   const reviewsData = [
     {
@@ -712,15 +737,7 @@ export default function MobileView({
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-3 pt-4 border-t border-stone-100">
-                        <img
-                          src={
-                            activeReview.avatar ||
-                            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"
-                          }
-                          alt={activeReview.name}
-                          className="w-8 h-8 rounded-full border border-[#d4af37]/30 object-cover"
-                        />
+                      <div className="flex items-center gap-2 pt-4 border-t border-stone-100">
                         <div>
                           <h4 className="text-xs font-bold text-stone-900">
                             {activeReview.name}
@@ -1528,7 +1545,121 @@ export default function MobileView({
         ),
         contact: (
           <div className="px-4 py-6 animate-fade-in pb-12 space-y-6">
-            <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wide flex items-center gap-2">
+            {/* Dynamic Personalized Profile Welcome Section */}
+            <div className="bg-gradient-to-br from-stone-900 to-stone-800 text-white rounded-3xl p-5 relative overflow-hidden shadow-md">
+              <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-[#d4af37]/10 rounded-full blur-xl pointer-events-none" />
+              
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[#d4af37] to-[#aa7c11] flex items-center justify-center shadow-md font-serif text-lg font-bold text-stone-900 uppercase">
+                  {(pastOrdersMobile[0]?.customerName || "G").charAt(0)}
+                </div>
+                <div>
+                  <span className="text-[9px] font-mono tracking-widest text-[#d4af37] uppercase font-bold">Welcome Back</span>
+                  <h3 className="text-sm font-bold font-serif tracking-wide text-white">
+                    {pastOrdersMobile[0]?.customerName || "Guest Gourmand"}
+                  </h3>
+                  <p className="text-[10px] text-stone-300 font-mono mt-0.5">
+                    {pastOrdersMobile[0]?.phoneNumber || "No active phone session"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-[9px] font-mono text-stone-400 block uppercase">Total Orders</span>
+                  <span className="text-xs font-mono font-bold text-white">
+                    {pastOrdersMobile.length} {pastOrdersMobile.length === 1 ? "Order" : "Orders"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-mono text-stone-400 block uppercase">Last Dining Type</span>
+                  <span className="text-[10px] font-semibold text-[#d4af37] block mt-0.5 uppercase">
+                    {pastOrdersMobile[0]?.orderType === "dine-in" ? `Dine-In (Table #${pastOrdersMobile[0].tableNumber})` : pastOrdersMobile[0]?.orderType || "N/A"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Recent Orders History */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-mono font-bold text-stone-500 uppercase tracking-widest">
+                  My Recent Orders ({pastOrdersMobile.length})
+                </h3>
+              </div>
+
+              {pastOrdersMobile.length === 0 ? (
+                <div className="bg-white border border-stone-200 rounded-2xl p-6 text-center space-y-2 shadow-sm">
+                  <div className="w-10 h-10 rounded-full bg-stone-50 border border-stone-100 flex items-center justify-center text-stone-400 mx-auto">
+                    <Clock className="w-5 h-5 text-stone-400" />
+                  </div>
+                  <h4 className="text-xs font-bold text-stone-900">No past orders yet</h4>
+                  <p className="text-[10px] text-stone-500 font-light max-w-xs mx-auto">
+                    Savor our gourmet dishes to start building your culinary timeline!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                  {pastOrdersMobile.slice(0, 5).map((order) => {
+                    const formattedDate = new Date(order.createdAt).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+
+                    const statusColor = 
+                      order.orderStatus === "Completed" || order.orderStatus === "Served" || order.orderStatus === "Delivered" ? "bg-green-50 text-green-700 border-green-200" :
+                      order.orderStatus === "Cancelled" ? "bg-red-50 text-red-600 border-red-200" :
+                      "bg-amber-50 text-amber-700 border-amber-200";
+
+                    return (
+                      <div key={order.id} className="bg-white border border-stone-200 p-4 rounded-2xl space-y-3 shadow-sm hover:border-stone-300 transition-all">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-stone-900">{order.id}</span>
+                            <span className="text-[10px] text-stone-404 font-mono ml-2">({formattedDate})</span>
+                          </div>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
+                            {order.orderStatus}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-stone-600 space-y-1">
+                          {order.items.map((item: any, i: number) => (
+                            <div key={i} className="flex justify-between text-[11px]">
+                              <span>
+                                <strong className="text-stone-900 font-medium">{item.quantity}x</strong> {item.name}
+                              </span>
+                              <span className="font-mono text-stone-500">₹{item.price * item.quantity}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="pt-2.5 border-t border-stone-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-[9px] font-mono text-stone-400 block uppercase">
+                              {order.orderType === "dine-in" ? `DINE-IN (Table #${order.tableNumber})` : order.orderType.toUpperCase()}
+                            </span>
+                            <span className="text-xs font-mono font-black text-stone-900">
+                              Total: ₹{order.grandTotal}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleReorderMobile(order)}
+                            className="bg-stone-900 hover:bg-[#aa7c11] text-white font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm cursor-pointer transition-all flex items-center gap-1"
+                          >
+                            Reorder
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wide flex items-center gap-2 pt-4 border-t border-stone-200/60">
               <Info className="w-5 h-5 text-[#aa7c11]" /> Contact & Reach Us
             </h2>
 

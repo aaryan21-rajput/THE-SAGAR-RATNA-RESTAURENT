@@ -168,19 +168,6 @@ export default function Reviews() {
                 {/* Float quotation decoration */}
                 <Quote className="absolute right-6 top-6 w-12 h-12 text-stone-200/50 pointer-events-none" />
 
-                {/* Avatar */}
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border border-[#d4af37]/25 shadow bg-stone-100">
-                    {review.avatar ? (
-                      <img src={review.avatar} alt={review.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[#d4af37]">
-                        <User className="w-6 h-6" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {/* Testimonial message details */}
                 <div className="space-y-2 flex-grow min-w-0">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">

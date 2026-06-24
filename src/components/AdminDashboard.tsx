@@ -1512,8 +1512,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <div key={r.id} className="bg-[#FAF6F0] rounded-xl border border-stone-250/50 p-4.5 flex flex-col md:flex-row justify-between gap-4">
                         
                         <div className="space-y-2 max-w-2xl">
-                          <div className="flex items-center gap-3">
-                            <img src={r.avatar} alt={r.name} className="w-9 h-9 rounded-full object-cover border border-stone-200" />
+                          <div className="flex items-center gap-2">
                             <div>
                               <h4 className="text-xs font-bold text-stone-900 font-sans">{r.name}</h4>
                               <p className="text-[10px] text-stone-405 font-mono mt-0.5">{r.date}</p>
