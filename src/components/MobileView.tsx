@@ -1497,8 +1497,12 @@ export default function MobileView({
                       <span className="font-mono">₹{subtotal}</span>
                     </div>
                     <div className="flex justify-between text-stone-500">
-                      <span>Service tax GST (5%)</span>
-                      <span className="font-mono">₹{gst}</span>
+                      <span>CGST (2.5%)</span>
+                      <span className="font-mono">₹{(gst / 2).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-stone-500">
+                      <span>SGST (2.5%)</span>
+                      <span className="font-mono">₹{(gst / 2).toFixed(2)}</span>
                     </div>
                     {packagingCharge > 0 && (
                       <div className="flex justify-between text-stone-500">

@@ -3,7 +3,8 @@ import {
   BarChart3, ShoppingCart, Utensils, Users, Landmark, Ticket, 
   MessageSquare, Package, ShieldCheck, Settings, LogOut, Check, X,
   Search, Plus, Filter, Download, Info, Trash2, Edit2, AlertCircle, 
-  Activity, Star, Sparkles, Volume2, VolumeX, Printer, CheckCircle, QrCode
+  Activity, Star, Sparkles, Volume2, VolumeX, Printer, CheckCircle, QrCode,
+  LifeBuoy, Clock
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } from "../lib/db";
@@ -12,6 +13,8 @@ import KitchenDashboard from "./KitchenDashboard";
 import LiveKotMonitor from "./LiveKotMonitor";
 import VirtualPrinterCenter from "./VirtualPrinterCenter";
 import SupabaseDiagnostics from "../pages/admin/SupabaseDiagnostics";
+import SupportFeedbackCenter from "./SupportFeedbackCenter";
+import StaffAttendanceManager from "./StaffAttendanceManager";
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -19,7 +22,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "logs" | "settings" | "kitchen" | "tables" | "supabase" | "virtual-printer"
+    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "logs" | "settings" | "kitchen" | "tables" | "supabase" | "virtual-printer" | "support" | "attendance"
   >("analytics");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -765,6 +768,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <SidebarBtn icon={<Ticket />} label="Promo Coupons" active={activeTab === "coupons"} onClick={() => setActiveTab("coupons")} />
             <SidebarBtn icon={<MessageSquare />} label="Guest Reviews" active={activeTab === "reviews"} count={reviews.filter(r => !r.approved).length} onClick={() => setActiveTab("reviews")} />
             <SidebarBtn icon={<QrCode />} label="Table QR Codes" active={activeTab === "tables"} onClick={() => setActiveTab("tables")} />
+            <SidebarBtn icon={<Clock />} label="Staff & Attendance" active={activeTab === "attendance"} onClick={() => setActiveTab("attendance")} />
+
             
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">OPERATOR VIEWS & KOT</p>
             <SidebarBtn icon={<Utensils />} label="Kitchen Display (KDS)" active={activeTab === "kitchen"} onClick={() => setActiveTab("kitchen")} />
@@ -773,6 +778,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">SECURITY & PARAMS</p>
             <SidebarBtn icon={<ShieldCheck />} label="Audit Log Ledger" active={activeTab === "logs"} onClick={() => setActiveTab("logs")} />
             <SidebarBtn icon={<Settings />} label="Portal Settings" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
+            <SidebarBtn icon={<LifeBuoy />} label="Support & Feedback" active={activeTab === "support"} onClick={() => setActiveTab("support")} />
             <SidebarBtn icon={<Activity />} label="Supabase Cloud Audit" active={activeTab === "supabase"} onClick={() => setActiveTab("supabase")} />
           </div>
 
@@ -799,10 +805,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 {activeTab === "reviews" && <MessageSquare className="w-4 h-4" />}
                 {activeTab === "logs" && <ShieldCheck className="w-4 h-4" />}
                 {activeTab === "settings" && <Settings className="w-4 h-4" />}
+                {activeTab === "support" && <LifeBuoy className="w-4 h-4" />}
                 {activeTab === "kitchen" && <Utensils className="w-4 h-4" />}
                 {activeTab === "tables" && <QrCode className="w-4 h-4" />}
                 {activeTab === "supabase" && <Activity className="w-4 h-4" />}
                 {activeTab === "virtual-printer" && <Printer className="w-4 h-4" />}
+                {activeTab === "attendance" && <Clock className="w-4 h-4" />}
               </span>
               <div>
                 <span className="text-[8px] text-stone-400 font-mono uppercase block leading-none">CURRENT BOARD</span>
@@ -816,11 +824,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   {activeTab === "reviews" && "Review Approvals"}
                   {activeTab === "logs" && "Audit Security Ledger"}
                   {activeTab === "settings" && "Portal Settings"}
+                  {activeTab === "support" && "Support & Feedback"}
                   {activeTab === "kitchen" && "Kitchen Tickets (KDS)"}
                   {activeTab === "tables" && "Table QR Codes Manager"}
                   {activeTab === "supabase" && "Supabase Connectivity Audit"}
                   {activeTab === "virtual-printer" && "Virtual KOT Printer Center"}
+                  {activeTab === "attendance" && "Staff Attendance Manager"}
                 </span>
+
               </div>
             </div>
             
@@ -852,11 +863,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <MobileGridBtn id="reviews" label="Reviews" active={activeTab === "reviews"} count={reviews.filter(r => !r.approved).length} icon={<MessageSquare />} onClick={() => { setActiveTab("reviews"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="logs" label="Audit Logs" active={activeTab === "logs"} icon={<ShieldCheck />} onClick={() => { setActiveTab("logs"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="settings" label="Portal Config" active={activeTab === "settings"} icon={<Settings />} onClick={() => { setActiveTab("settings"); setIsMobileMenuOpen(false); }} />
+                  <MobileGridBtn id="support" label="Support Desk" active={activeTab === "support"} icon={<LifeBuoy />} onClick={() => { setActiveTab("support"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="kitchen" label="Kitchen KDS" active={activeTab === "kitchen"} icon={<Utensils />} onClick={() => { setActiveTab("kitchen"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="tables" label="Table QRs" active={activeTab === "tables"} icon={<QrCode />} onClick={() => { setActiveTab("tables"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="supabase" label="Supa Audit" active={activeTab === "supabase"} icon={<Activity />} onClick={() => { setActiveTab("supabase"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="virtual-printer" label="Virt Printer" active={activeTab === "virtual-printer"} icon={<Printer />} onClick={() => { setActiveTab("virtual-printer"); setIsMobileMenuOpen(false); }} />
+                  <MobileGridBtn id="attendance" label="Staff & Attendance" active={activeTab === "attendance"} icon={<Clock />} onClick={() => { setActiveTab("attendance"); setIsMobileMenuOpen(false); }} />
                 </div>
+
               </motion.div>
             )}
           </AnimatePresence>
@@ -2016,6 +2030,21 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </motion.div>
             )}
 
+            {/* TAB CONTENT: SUPPORT & FEEDBACK */}
+            {activeTab === "support" && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full">
+                <SupportFeedbackCenter settings={settings} />
+              </motion.div>
+            )}
+
+            {/* TAB CONTENT: STAFF & ATTENDANCE */}
+            {activeTab === "attendance" && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full">
+                <StaffAttendanceManager />
+              </motion.div>
+            )}
+
+
           </div>
         </main>
 
@@ -2071,8 +2100,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     <span className="font-semibold text-stone-800 font-mono">₹{selectedOrderDetails.subtotal}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span>GST (5%) Surcharge</span>
-                    <span className="font-semibold text-stone-800 font-mono">₹{selectedOrderDetails.gst}</span>
+                    <span>CGST (2.5%)</span>
+                    <span className="font-semibold text-stone-800 font-mono">₹{(selectedOrderDetails.gst / 2).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span>SGST (2.5%)</span>
+                    <span className="font-semibold text-stone-800 font-mono">₹{(selectedOrderDetails.gst / 2).toFixed(2)}</span>
                   </div>
                   {selectedOrderDetails.packagingCharge > 0 && (
                     <div className="flex justify-between text-xs">
@@ -2165,8 +2198,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     <span>₹{showBillPrint.subtotal}</span>
                   </div>
                   <div className="flex justify-between text-stone-600">
-                    <span>Government GST ({settings.gstPercentage}%):</span>
-                    <span>₹{showBillPrint.gst}</span>
+                    <span>CGST ({(settings.gstPercentage / 2).toFixed(1)}%):</span>
+                    <span>₹{(showBillPrint.gst / 2).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-stone-600">
+                    <span>SGST ({(settings.gstPercentage / 2).toFixed(1)}%):</span>
+                    <span>₹{(showBillPrint.gst / 2).toFixed(2)}</span>
                   </div>
                   {showBillPrint.packagingCharge > 0 && (
                     <div className="flex justify-between text-stone-600">
