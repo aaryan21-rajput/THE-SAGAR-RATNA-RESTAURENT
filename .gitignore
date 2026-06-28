@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+db-store.json
+test-results/
+playwright-report/
+

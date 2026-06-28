@@ -298,6 +298,8 @@ async function syncOrderToSupabase(order: any, isUpdate = false) {
   }
 }
 
+const generatedIds = new Set<string>();
+
 export async function startServer(port: number = 3000) {
   const app = express();
   const PORT = port;
@@ -326,8 +328,8 @@ export async function startServer(port: number = 3000) {
         return res.status(400).json({ error: "Email and password must be string parameters." });
       }
 
-      const expectedEmail = (process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com").toLowerCase();
-      const expectedHash = process.env.ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
+      const expectedEmail = (process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || "aaryanrajputofficial@gmail.com").toLowerCase();
+      const expectedHash = process.env.ADMIN_PASSWORD_HASH || process.env.VITE_ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
 
       const inputHash = crypto.createHash("sha256").update(password).digest("hex");
 
@@ -395,8 +397,14 @@ export async function startServer(port: number = 3000) {
       }
 
       // 3. Serialized Unique Order ID Sequence
+      let orderId;
       const ordersCount = db.orders.length;
-      const orderId = `SR-${1000 + ordersCount + Math.floor(Math.random() * 900 + 100)}`;
+      let attempts = 0;
+      do {
+        orderId = `SR-${1000 + ordersCount + Math.floor(Math.random() * 100000 + attempts * 100)}`;
+        attempts++;
+      } while (db.orders.some((o: any) => o.id === orderId) || generatedIds.has(orderId));
+      generatedIds.add(orderId);
 
       const newOrder: Order = {
         ...orderData,
@@ -410,6 +418,7 @@ export async function startServer(port: number = 3000) {
 
       db.orders.unshift(newOrder); // New order on top
       writeDb(db);
+      generatedIds.delete(orderId);
 
       // Trigger asynchronous Supabase synchronization in the background to ensure blazing fast checkout
       syncOrderToSupabase(newOrder, false).catch(e => {

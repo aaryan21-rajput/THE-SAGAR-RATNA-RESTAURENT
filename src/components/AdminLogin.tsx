@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Shield, Mail, Lock, Eye, EyeOff, Sparkles, KeyRound, AlertCircle, HelpCircle } from "lucide-react";
+import { Shield, Mail, Lock, Eye, EyeOff, Sparkles, KeyRound, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { LocalDB } from "../lib/db";
 
@@ -68,9 +68,13 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
       }
     } catch (err) {
       // Robust and secure offline fallback for development/sandbox environments
-      const isMasterEmail = email.toLowerCase().trim() === "aaryanrajputofficial@gmail.com";
+      const anyMeta = import.meta as any;
+      const fallbackEmail = anyMeta.env.VITE_ADMIN_EMAIL || "aaryanrajputofficial@gmail.com";
+      const fallbackHash = anyMeta.env.VITE_ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
+
+      const isMasterEmail = email.toLowerCase().trim() === fallbackEmail.toLowerCase().trim();
       const inputHash = await sha256(password.trim()).catch(() => "");
-      const isMasterPassword = inputHash === "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
+      const isMasterPassword = inputHash === fallbackHash;
 
       if (isMasterEmail && isMasterPassword) {
         const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: email }));

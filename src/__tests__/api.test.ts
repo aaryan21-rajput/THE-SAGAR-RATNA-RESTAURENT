@@ -83,17 +83,20 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
     });
 
     it("POST /api/admin/login - should authenticate with valid credentials", async () => {
+      const email = process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com";
+      const password = process.env.ADMIN_EMAIL === "admin@sagarratna.com" ? "admin098" : "Admin@12345";
       const res = await apiRequest("POST", "/api/admin/login", {
-        email: "aaryanrajputofficial@gmail.com",
-        password: "Admin@12345"
+        email,
+        password
       });
       expect(res.status).toBe(200);
       expect(res.data?.token).toBeDefined();
     });
 
     it("POST /api/admin/login - should reject invalid cryptographic credentials", async () => {
+      const email = process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com";
       const res = await apiRequest("POST", "/api/admin/login", {
-        email: "aaryanrajputofficial@gmail.com",
+        email,
         password: "wrongpassword"
       });
       expect(res.status).toBe(401);
@@ -101,32 +104,36 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
     });
 
     it("POST /api/admin/login - should reject missing email field", async () => {
+      const password = process.env.ADMIN_EMAIL === "admin@sagarratna.com" ? "admin098" : "Admin@12345";
       const res = await apiRequest("POST", "/api/admin/login", {
-        password: "Admin@12345"
+        password
       });
       expect(res.status).toBe(400);
     });
 
     it("POST /api/admin/login - should reject wrong type parameters", async () => {
+      const email = process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com";
       const res = await apiRequest("POST", "/api/admin/login", {
-        email: ["aaryanrajputofficial@gmail.com"],
+        email: [email],
         password: 12345
       });
       expect([400, 401]).toContain(res.status);
     });
 
     it("POST /api/admin/login - should safely reject SQL injection payloads", async () => {
+      const email = process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com";
       const res = await apiRequest("POST", "/api/admin/login", {
-        email: "aaryanrajputofficial@gmail.com' OR '1'='1",
+        email: `${email}' OR '1'='1`,
         password: "wrong_password' OR 1=1 --"
       });
       expect(res.status).toBe(401);
     });
 
     it("POST /api/admin/login - should safely reject XSS script payloads", async () => {
+      const password = process.env.ADMIN_EMAIL === "admin@sagarratna.com" ? "admin098" : "Admin@12345";
       const res = await apiRequest("POST", "/api/admin/login", {
         email: "<script>alert('XSS')</script>@gmail.com",
-        password: "Admin@12345"
+        password
       });
       expect(res.status).toBe(401);
     });
