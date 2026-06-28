@@ -227,11 +227,18 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
 
         {/* Quick developer credential tip */}
         <div className="mt-8 border-t border-stone-100 pt-4 text-center">
-          <p className="text-[10px] sm:text-xs font-mono text-stone-400">
-            For Developer Sandbox testing:
-            <br />
-            <span className="text-[#aa7c11]">admin@sagarratna.com</span> / <span className="text-stone-600 font-bold">admin123</span>
-          </p>
+          <div className="text-xs font-mono text-stone-500 bg-stone-50/50 p-4 rounded-xl border border-stone-100 leading-relaxed text-left">
+            <div className="text-stone-300 text-center select-none">---------------------------------------</div>
+            <div className="font-semibold text-stone-700 tracking-wider uppercase text-center mt-1 mb-2">For Developer Sandbox Testing</div>
+            <div className="mt-1">
+              <span className="text-stone-400 uppercase tracking-widest text-[10px] block">Email:</span>
+              <span className="text-stone-800 font-bold block select-all font-sans bg-white px-2 py-1 rounded border border-stone-150 mt-0.5">admin@sagarratna.com</span>
+            </div>
+            <div className="mt-2">
+              <span className="text-stone-400 uppercase tracking-widest text-[10px] block">Password:</span>
+              <span className="text-stone-800 font-bold block select-all font-sans bg-white px-2 py-1 rounded border border-stone-150 mt-0.5">admin123</span>
+            </div>
+          </div>
         </div>
       </motion.div>
 
