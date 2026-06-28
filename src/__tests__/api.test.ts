@@ -83,8 +83,8 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
 
     it("POST /api/admin/login - should authenticate with valid credentials", async () => {
       const res = await apiRequest("POST", "/api/admin/login", {
-        email: "admin@sagarratna.com",
-        password: "admin123"
+        email: "aaryanrajputofficial@gmail.com",
+        password: "admin1234"
       });
       expect(res.status).toBe(200);
       expect(res.data?.token).toBeDefined();
@@ -92,7 +92,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
 
     it("POST /api/admin/login - should reject invalid cryptographic credentials", async () => {
       const res = await apiRequest("POST", "/api/admin/login", {
-        email: "admin@sagarratna.com",
+        email: "aaryanrajputofficial@gmail.com",
         password: "wrongpassword"
       });
       expect(res.status).toBe(401);
@@ -101,14 +101,14 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
 
     it("POST /api/admin/login - should reject missing email field", async () => {
       const res = await apiRequest("POST", "/api/admin/login", {
-        password: "admin123"
+        password: "admin1234"
       });
       expect(res.status).toBe(400);
     });
 
     it("POST /api/admin/login - should reject wrong type parameters", async () => {
       const res = await apiRequest("POST", "/api/admin/login", {
-        email: ["admin@sagarratna.com"],
+        email: ["aaryanrajputofficial@gmail.com"],
         password: 12345
       });
       expect([400, 401]).toContain(res.status);
@@ -116,7 +116,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
 
     it("POST /api/admin/login - should safely reject SQL injection payloads", async () => {
       const res = await apiRequest("POST", "/api/admin/login", {
-        email: "admin@sagarratna.com' OR '1'='1",
+        email: "aaryanrajputofficial@gmail.com' OR '1'='1",
         password: "wrong_password' OR 1=1 --"
       });
       expect(res.status).toBe(401);
@@ -124,8 +124,8 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
 
     it("POST /api/admin/login - should safely reject XSS script payloads", async () => {
       const res = await apiRequest("POST", "/api/admin/login", {
-        email: "<script>alert('XSS')</script>@sagarratna.com",
-        password: "admin123"
+        email: "<script>alert('XSS')</script>@gmail.com",
+        password: "admin1234"
       });
       expect(res.status).toBe(401);
     });

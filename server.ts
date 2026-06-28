@@ -326,9 +326,10 @@ export async function startServer(port: number = 3000) {
         return res.status(400).json({ error: "Email and password must be string parameters." });
       }
 
-      const isMasterEmail = email.toLowerCase() === "admin@sagarratna.com";
+      const isMasterEmail = email.toLowerCase() === "aaryanrajputofficial@gmail.com";
       const isMasterPassword = 
         password === process.env.ADMIN_PASSWORD || 
+        password === "admin1234" || 
         password === "admin123" || 
         password === "password123";
 

@@ -21,7 +21,7 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     await page.goto('/');
     
     // Check that our 100% pure vegetarian text or category indicator is visible
-    const vegBanner = page.locator('text=100% Pure Vegetarian Dining Experience');
+    const vegBanner = page.locator('text=100% Pure Vegetarian Sagar Ratna');
     await expect(vegBanner).toBeVisible();
     
     // Take mobile screenshot
@@ -34,8 +34,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     await page.goto('/#admin');
     await page.waitForSelector('input[type="email"]');
     
-    await page.fill('input[type="email"]', 'admin@sagarratna.com');
-    await page.fill('input[type="password"]', 'admin123');
+    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
+    await page.fill('input[type="password"]', 'admin1234');
     
     // Click authorization button
     await page.click('button#admin-login-btn');
@@ -99,8 +99,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     console.log('--- Test 4: Table Booking ---');
     // Log in as Admin
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'admin@sagarratna.com');
-    await page.fill('input[type="password"]', 'admin123');
+    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
+    await page.fill('input[type="password"]', 'admin1234');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -130,8 +130,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     console.log('--- Test 5: Inventory ---');
     // Log in as Admin
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'admin@sagarratna.com');
-    await page.fill('input[type="password"]', 'admin123');
+    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
+    await page.fill('input[type="password"]', 'admin1234');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -147,8 +147,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     console.log('--- Test 6: Reports ---');
     // Log in as Admin
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'admin@sagarratna.com');
-    await page.fill('input[type="password"]', 'admin123');
+    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
+    await page.fill('input[type="password"]', 'admin1234');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -165,8 +165,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     console.log('--- Test 7: Kitchen Display ---');
     // Log in as Admin
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'admin@sagarratna.com');
-    await page.fill('input[type="password"]', 'admin123');
+    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
+    await page.fill('input[type="password"]', 'admin1234');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -183,8 +183,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     console.log('--- Test 8: Billing ---');
     // Log in as Admin
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'admin@sagarratna.com');
-    await page.fill('input[type="password"]', 'admin123');
+    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
+    await page.fill('input[type="password"]', 'admin1234');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -201,8 +201,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     console.log('--- Test 9: Admin Logout ---');
     // Log in as Admin
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'admin@sagarratna.com');
-    await page.fill('input[type="password"]', 'admin123');
+    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
+    await page.fill('input[type="password"]', 'admin1234');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     

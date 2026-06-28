@@ -26,15 +26,15 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
   }, []);
   
   const handleQuickSandboxLogin = async () => {
-    setEmail("admin@sagarratna.com");
-    setPassword("admin123");
+    setEmail("aaryanrajputofficial@gmail.com");
+    setPassword("admin1234");
     setErrorCode(null);
 
     try {
       const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "admin@sagarratna.com", password: "admin123" })
+        body: JSON.stringify({ email: "aaryanrajputofficial@gmail.com", password: "admin1234" })
       });
 
       if (response.ok) {
@@ -48,7 +48,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
       }
     } catch (err) {
       // offline fallback
-      const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: "admin@sagarratna.com" }));
+      const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: "aaryanrajputofficial@gmail.com" }));
       const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
       const mockSignature = "r9U_63r-9saV_77f_93n-c";
       const token = `${header}.${payload}.${mockSignature}`;
@@ -91,8 +91,8 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
       }
     } catch (err) {
       // Robust offline fallback for development/sandbox environments
-      const isMasterEmail = email.toLowerCase() === "admin@sagarratna.com";
-      const isMasterPassword = password === "admin123" || password === "password123";
+      const isMasterEmail = email.toLowerCase() === "aaryanrajputofficial@gmail.com";
+      const isMasterPassword = password === "admin1234" || password === "admin123" || password === "password123";
 
       if (isMasterEmail && isMasterPassword) {
         const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: email }));
@@ -191,7 +191,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@sagarratna.com"
+                placeholder="aaryanrajputofficial@gmail.com"
                 className="w-full pl-11 pr-4 py-3 bg-stone-50 hover:bg-stone-50 border border-stone-200 focus:border-[#d4af37]/80 text-sm rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none transition-all font-sans"
               />
             </div>
@@ -263,11 +263,11 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
             <div className="font-semibold text-stone-700 tracking-wider uppercase text-center mt-1 mb-2">For Developer Sandbox Testing</div>
             <div className="mt-1">
               <span className="text-stone-400 uppercase tracking-widest text-[10px] block">Email:</span>
-              <span className="text-stone-800 font-bold block select-all font-sans bg-white px-2 py-1 rounded border border-stone-150 mt-0.5">admin@sagarratna.com</span>
+              <span className="text-stone-800 font-bold block select-all font-sans bg-white px-2 py-1 rounded border border-stone-150 mt-0.5">aaryanrajputofficial@gmail.com</span>
             </div>
             <div className="mt-2">
               <span className="text-stone-400 uppercase tracking-widest text-[10px] block">Password:</span>
-              <span className="text-stone-800 font-bold block select-all font-sans bg-white px-2 py-1 rounded border border-stone-150 mt-0.5">admin123</span>
+              <span className="text-stone-800 font-bold block select-all font-sans bg-white px-2 py-1 rounded border border-stone-150 mt-0.5">admin1234</span>
             </div>
             <button
               type="button"
@@ -342,7 +342,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
                       type="email"
                       value={recoveryEmail}
                       onChange={(e) => setRecoveryEmail(e.target.value)}
-                      placeholder="admin@sagarratna.com"
+                      placeholder="aaryanrajputofficial@gmail.com"
                       className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 focus:border-yellow-600 focus:outline-none rounded-xl text-sm text-stone-900 font-sans"
                     />
                   </div>
