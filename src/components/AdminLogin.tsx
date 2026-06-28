@@ -169,7 +169,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="aaryanrajputofficial@gmail.com"
+                placeholder="admin@example.com"
                 className="w-full pl-11 pr-4 py-3 bg-stone-50 hover:bg-stone-50 border border-stone-200 focus:border-[#d4af37]/80 text-sm rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none transition-all font-sans"
               />
             </div>
@@ -296,7 +296,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
                       type="email"
                       value={recoveryEmail}
                       onChange={(e) => setRecoveryEmail(e.target.value)}
-                      placeholder="aaryanrajputofficial@gmail.com"
+                      placeholder="admin@example.com"
                       className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 focus:border-yellow-600 focus:outline-none rounded-xl text-sm text-stone-900 font-sans"
                     />
                   </div>
