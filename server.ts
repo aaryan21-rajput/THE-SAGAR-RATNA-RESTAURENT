@@ -326,12 +326,13 @@ export async function startServer(port: number = 3000) {
         return res.status(400).json({ error: "Email and password must be string parameters." });
       }
 
-      const isMasterEmail = email.toLowerCase() === "aaryanrajputofficial@gmail.com";
-      const isMasterPassword = 
-        password === process.env.ADMIN_PASSWORD || 
-        password === "admin1234" || 
-        password === "admin123" || 
-        password === "password123";
+      const expectedEmail = (process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com").toLowerCase();
+      const expectedHash = process.env.ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
+
+      const inputHash = crypto.createHash("sha256").update(password).digest("hex");
+
+      const isMasterEmail = email.toLowerCase() === expectedEmail;
+      const isMasterPassword = inputHash === expectedHash;
 
       if (isMasterEmail && isMasterPassword) {
         const token = signToken({ sub: "sagar_ratna_admin_id", role: "Owner", email: email });

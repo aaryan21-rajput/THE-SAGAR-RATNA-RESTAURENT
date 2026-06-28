@@ -24,36 +24,13 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
       setEmail(savedEmail);
     }
   }, []);
-  
-  const handleQuickSandboxLogin = async () => {
-    setEmail("aaryanrajputofficial@gmail.com");
-    setPassword("admin1234");
-    setErrorCode(null);
 
-    try {
-      const response = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "aaryanrajputofficial@gmail.com", password: "admin1234" })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const token = data.token;
-        LocalDB.addAuditLog("Admin Authorized", `Logged in from IP 127.0.0.1 using quick sandbox bypass`, "Admin");
-        onLoginSuccess(token, rememberMe);
-      } else {
-        const errData = await response.json().catch(() => ({}));
-        setErrorCode(errData.error || "Invalid cryptographic credentials.");
-      }
-    } catch (err) {
-      // offline fallback
-      const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: "aaryanrajputofficial@gmail.com" }));
-      const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-      const mockSignature = "r9U_63r-9saV_77f_93n-c";
-      const token = `${header}.${payload}.${mockSignature}`;
-      onLoginSuccess(token, rememberMe);
-    }
+  const sha256 = async (str: string): Promise<string> => {
+    const buf = new TextEncoder().encode(str);
+    const hashBuf = await window.crypto.subtle.digest("SHA-256", buf);
+    return Array.from(new Uint8Array(hashBuf))
+      .map(b => b.toString(16).padStart(2, "0"))
+      .join("");
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -90,9 +67,10 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         LocalDB.addAuditLog("Access Denied", `Failed login attempt for account ${email}`, "System Gateway");
       }
     } catch (err) {
-      // Robust offline fallback for development/sandbox environments
-      const isMasterEmail = email.toLowerCase() === "aaryanrajputofficial@gmail.com";
-      const isMasterPassword = password === "admin1234" || password === "admin123" || password === "password123";
+      // Robust and secure offline fallback for development/sandbox environments
+      const isMasterEmail = email.toLowerCase().trim() === "aaryanrajputofficial@gmail.com";
+      const inputHash = await sha256(password.trim()).catch(() => "");
+      const isMasterPassword = inputHash === "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
 
       if (isMasterEmail && isMasterPassword) {
         const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: email }));
@@ -255,30 +233,6 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
             AUTHORIZE & ENTER
           </motion.button>
         </form>
-
-        {/* Quick developer credential tip */}
-        <div className="mt-8 border-t border-stone-100 pt-4 text-center">
-          <div className="text-xs font-mono text-stone-500 bg-stone-50/50 p-4 rounded-xl border border-stone-100 leading-relaxed text-left">
-            <div className="text-stone-300 text-center select-none">---------------------------------------</div>
-            <div className="font-semibold text-stone-700 tracking-wider uppercase text-center mt-1 mb-2">For Developer Sandbox Testing</div>
-            <div className="mt-1">
-              <span className="text-stone-400 uppercase tracking-widest text-[10px] block">Email:</span>
-              <span className="text-stone-800 font-bold block select-all font-sans bg-white px-2 py-1 rounded border border-stone-150 mt-0.5">aaryanrajputofficial@gmail.com</span>
-            </div>
-            <div className="mt-2">
-              <span className="text-stone-400 uppercase tracking-widest text-[10px] block">Password:</span>
-              <span className="text-stone-800 font-bold block select-all font-sans bg-white px-2 py-1 rounded border border-stone-150 mt-0.5">admin1234</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleQuickSandboxLogin}
-              className="mt-4 w-full py-2.5 bg-stone-900 text-stone-50 hover:bg-[#aa7c11] text-xs font-sans font-semibold uppercase tracking-wider rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-[#d4af37]" />
-              Quick Enter (One-Click)
-            </button>
-          </div>
-        </div>
       </motion.div>
 
       {/* Forgot Password modal */}

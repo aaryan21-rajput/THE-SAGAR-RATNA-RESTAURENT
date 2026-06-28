@@ -35,7 +35,7 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     await page.waitForSelector('input[type="email"]');
     
     await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'admin1234');
+    await page.fill('input[type="password"]', 'Admin@12345');
     
     // Click authorization button
     await page.click('button#admin-login-btn');
@@ -100,7 +100,7 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     // Log in as Admin
     await page.goto('/#admin');
     await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'admin1234');
+    await page.fill('input[type="password"]', 'Admin@12345');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -131,7 +131,7 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     // Log in as Admin
     await page.goto('/#admin');
     await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'admin1234');
+    await page.fill('input[type="password"]', 'Admin@12345');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -148,7 +148,7 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     // Log in as Admin
     await page.goto('/#admin');
     await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'admin1234');
+    await page.fill('input[type="password"]', 'Admin@12345');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -166,7 +166,7 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     // Log in as Admin
     await page.goto('/#admin');
     await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'admin1234');
+    await page.fill('input[type="password"]', 'Admin@12345');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -184,7 +184,7 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     // Log in as Admin
     await page.goto('/#admin');
     await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'admin1234');
+    await page.fill('input[type="password"]', 'Admin@12345');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
@@ -202,7 +202,7 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     // Log in as Admin
     await page.goto('/#admin');
     await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'admin1234');
+    await page.fill('input[type="password"]', 'Admin@12345');
     await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { startServer, signToken } from "../../server";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 
 const STORE_PATH = path.join(process.cwd(), "db-store.json");
 let serverInstance: any;
@@ -84,7 +85,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
     it("POST /api/admin/login - should authenticate with valid credentials", async () => {
       const res = await apiRequest("POST", "/api/admin/login", {
         email: "aaryanrajputofficial@gmail.com",
-        password: "admin1234"
+        password: "Admin@12345"
       });
       expect(res.status).toBe(200);
       expect(res.data?.token).toBeDefined();
@@ -101,7 +102,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
 
     it("POST /api/admin/login - should reject missing email field", async () => {
       const res = await apiRequest("POST", "/api/admin/login", {
-        password: "admin1234"
+        password: "Admin@12345"
       });
       expect(res.status).toBe(400);
     });
@@ -125,7 +126,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
     it("POST /api/admin/login - should safely reject XSS script payloads", async () => {
       const res = await apiRequest("POST", "/api/admin/login", {
         email: "<script>alert('XSS')</script>@gmail.com",
-        password: "admin1234"
+        password: "Admin@12345"
       });
       expect(res.status).toBe(401);
     });
