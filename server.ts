@@ -328,8 +328,8 @@ export async function startServer(port: number = 3000) {
         return res.status(400).json({ error: "Email and password must be string parameters." });
       }
 
-      const expectedEmail = (process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || "aaryanrajputofficial@gmail.com").toLowerCase();
-      const expectedHash = process.env.ADMIN_PASSWORD_HASH || process.env.VITE_ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
+      const expectedEmail = (process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || "admin@sagarratna.com").toLowerCase();
+      const expectedHash = process.env.ADMIN_PASSWORD_HASH || process.env.VITE_ADMIN_PASSWORD_HASH || "3810e7c0419e62b7f07a9b5d6bb3059fbc10ead17cacd3b50a3e71b9e86b0dde";
 
       const inputHash = crypto.createHash("sha256").update(password).digest("hex");
 

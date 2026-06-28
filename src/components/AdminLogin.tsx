@@ -69,8 +69,8 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
     } catch (err) {
       // Robust and secure offline fallback for development/sandbox environments
       const anyMeta = import.meta as any;
-      const fallbackEmail = anyMeta.env.VITE_ADMIN_EMAIL || "aaryanrajputofficial@gmail.com";
-      const fallbackHash = anyMeta.env.VITE_ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
+      const fallbackEmail = anyMeta.env.VITE_ADMIN_EMAIL || "admin@sagarratna.com";
+      const fallbackHash = anyMeta.env.VITE_ADMIN_PASSWORD_HASH || "3810e7c0419e62b7f07a9b5d6bb3059fbc10ead17cacd3b50a3e71b9e86b0dde";
 
       const isMasterEmail = email.toLowerCase().trim() === fallbackEmail.toLowerCase().trim();
       const inputHash = await sha256(password.trim()).catch(() => "");
