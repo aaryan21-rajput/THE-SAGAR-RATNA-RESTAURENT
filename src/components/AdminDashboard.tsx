@@ -9,9 +9,9 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } from "../lib/db";
 import { MenuItem, RestaurantTable } from "../types";
+import { PhysicalThermalPrinter } from "../lib/printerService";
 import KitchenDashboard from "./KitchenDashboard";
 import LiveKotMonitor from "./LiveKotMonitor";
-import VirtualPrinterCenter from "./VirtualPrinterCenter";
 import SupabaseDiagnostics from "../pages/admin/SupabaseDiagnostics";
 import SupportFeedbackCenter from "./SupportFeedbackCenter";
 import StaffAttendanceManager from "./StaffAttendanceManager";
@@ -22,7 +22,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "logs" | "settings" | "kitchen" | "tables" | "supabase" | "virtual-printer" | "support" | "attendance"
+    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "logs" | "settings" | "kitchen" | "tables" | "supabase" | "support" | "attendance"
   >("analytics");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -49,6 +49,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [activeAlerts, setActiveAlerts] = useState<Order[]>([]);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
   const [showBillPrint, setShowBillPrint] = useState<Order | null>(null);
+  const [selectedPaperWidth, setSelectedPaperWidth] = useState<"58mm" | "80mm">("80mm");
 
   // Inactivity tracking: 10 minutes auto-logout
   const [secondsRemaining, setSecondsRemaining] = useState(600); // 10 minutes
@@ -315,7 +316,15 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     return inventory.filter(i => i.stock <= i.minAlertLevel);
   }, [inventory]);
 
-  // EXPORT UTILS
+  // EXPORT UTILS WITH FORMULA INJECTION PROTECTION
+  const escapeCSVField = (val: any): string => {
+    const str = String(val ?? "");
+    if (str.startsWith("=") || str.startsWith("+") || str.startsWith("-") || str.startsWith("@")) {
+      return `'${str}`;
+    }
+    return str;
+  };
+
   const handleExportCSV = (filename: string, text: string) => {
     const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -332,7 +341,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const exportCustomersCSV = () => {
     let csv = "Customer Name,Phone Number,Email,Total Spending,Orders Placed,Last Order Date\n";
     customerAnalytics.forEach(c => {
-      csv += `"${c.name}","${c.phone}","${c.email}",₹${c.totalSpend},${c.count},"${new Date(c.lastDate).toLocaleDateString()}"\n`;
+      csv += `"${escapeCSVField(c.name)}","${escapeCSVField(c.phone)}","${escapeCSVField(c.email)}",₹${c.totalSpend},${c.count},"${new Date(c.lastDate).toLocaleDateString()}"\n`;
     });
     handleExportCSV("SagarRatna_Customers", csv);
   };
@@ -340,7 +349,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const exportRevenueCSV = () => {
     let csv = "Order ID,Customer,Amount,Status,Date & Time,Type,Coupon,GST\n";
     orders.forEach(o => {
-      csv += `${o.id},"${o.customerName}",₹${o.grandTotal},${o.orderStatus},"${new Date(o.createdAt).toLocaleString()}",${o.orderType},"${o.appliedCoupon || ""}",₹${o.gst}\n`;
+      csv += `${escapeCSVField(o.id)},"${escapeCSVField(o.customerName)}",₹${o.grandTotal},${escapeCSVField(o.orderStatus)},"${new Date(o.createdAt).toLocaleString()}",${escapeCSVField(o.orderType)},"${escapeCSVField(o.appliedCoupon || "")}",₹${o.gst}\n`;
     });
     handleExportCSV("SagarRatna_RevenueReport", csv);
   };
@@ -719,7 +728,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* Diagnostic controls and countdown */}
         <div className="flex items-center gap-2 md:gap-4 text-xs font-mono">
-          <div className="hidden md:flex items-center gap-2 text-stone-500 bg-stone-50 px-3 py-1.5 border border-stone-200 rounded-lg">
+          <div className="hidden">
             <Activity className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
             <span>DB Server: <span className="text-green-600 font-bold">Live</span></span>
           </div>
@@ -734,7 +743,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </button>
 
           {/* Timeout alarm */}
-          <div className="text-stone-600 bg-stone-50 px-20 py-1.5 border border-stone-200 rounded-lg flex items-center gap-1.5 text-[10px] sm:text-xs">
+          <div className="hidden">
             <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping" />
             <span>⏱️ <strong className="text-stone-900">{formatTimeRemaining(secondsRemaining)}</strong></span>
           </div>
@@ -773,7 +782,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">OPERATOR VIEWS & KOT</p>
             <SidebarBtn icon={<Utensils />} label="Kitchen Display (KDS)" active={activeTab === "kitchen"} onClick={() => setActiveTab("kitchen")} />
-            <SidebarBtn icon={<Printer />} label="Virtual Printer" active={activeTab === "virtual-printer"} onClick={() => setActiveTab("virtual-printer")} />
 
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">SECURITY & PARAMS</p>
             <SidebarBtn icon={<ShieldCheck />} label="Audit Log Ledger" active={activeTab === "logs"} onClick={() => setActiveTab("logs")} />
@@ -809,7 +817,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 {activeTab === "kitchen" && <Utensils className="w-4 h-4" />}
                 {activeTab === "tables" && <QrCode className="w-4 h-4" />}
                 {activeTab === "supabase" && <Activity className="w-4 h-4" />}
-                {activeTab === "virtual-printer" && <Printer className="w-4 h-4" />}
                 {activeTab === "attendance" && <Clock className="w-4 h-4" />}
               </span>
               <div>
@@ -828,7 +835,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   {activeTab === "kitchen" && "Kitchen Tickets (KDS)"}
                   {activeTab === "tables" && "Table QR Codes Manager"}
                   {activeTab === "supabase" && "Supabase Connectivity Audit"}
-                  {activeTab === "virtual-printer" && "Virtual KOT Printer Center"}
                   {activeTab === "attendance" && "Staff Attendance Manager"}
                 </span>
 
@@ -867,7 +873,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <MobileGridBtn id="kitchen" label="Kitchen KDS" active={activeTab === "kitchen"} icon={<Utensils />} onClick={() => { setActiveTab("kitchen"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="tables" label="Table QRs" active={activeTab === "tables"} icon={<QrCode />} onClick={() => { setActiveTab("tables"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="supabase" label="Supa Audit" active={activeTab === "supabase"} icon={<Activity />} onClick={() => { setActiveTab("supabase"); setIsMobileMenuOpen(false); }} />
-                  <MobileGridBtn id="virtual-printer" label="Virt Printer" active={activeTab === "virtual-printer"} icon={<Printer />} onClick={() => { setActiveTab("virtual-printer"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="attendance" label="Staff & Attendance" active={activeTab === "attendance"} icon={<Clock />} onClick={() => { setActiveTab("attendance"); setIsMobileMenuOpen(false); }} />
                 </div>
 
@@ -1681,6 +1686,17 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       />
                     </div>
 
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-sans font-bold text-[#C67C4E] uppercase tracking-widest block">RESTAURANT GSTIN / GST NUMBER</label>
+                      <input
+                        type="text"
+                        value={settings.gstNumber || ""}
+                        onChange={(e) => setSettings({ ...settings, gstNumber: e.target.value })}
+                        placeholder="e.g. 07AAAAA1111A1Z1"
+                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-sans"
+                      />
+                    </div>
+
                     <div className="space-y-1 sm:col-span-2">
                       <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">GEOLOCATION POSTAL ADDRESS</label>
                       <textarea
@@ -2023,13 +2039,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </motion.div>
             )}
 
-            {/* TAB CONTENT: VIRTUAL PRINTER */}
-            {activeTab === "virtual-printer" && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
-                <VirtualPrinterCenter />
-              </motion.div>
-            )}
-
             {/* TAB CONTENT: SUPPORT & FEEDBACK */}
             {activeTab === "support" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full">
@@ -2230,11 +2239,40 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 </div>
               </div>
 
+              {/* Paper width selector */}
+              <div className="mt-4 p-2.5 bg-stone-50 rounded-xl border border-stone-200/60 no-print font-sans">
+                <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2 text-center">Select Thermal Paper Size</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaperWidth("80mm")}
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      selectedPaperWidth === "80mm"
+                        ? "bg-[#C67C4E] text-white shadow-xs"
+                        : "bg-white text-stone-600 hover:bg-stone-100 border border-stone-200"
+                    }`}
+                  >
+                    80mm (Standard)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaperWidth("58mm")}
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      selectedPaperWidth === "58mm"
+                        ? "bg-[#C67C4E] text-white shadow-xs"
+                        : "bg-white text-stone-600 hover:bg-stone-100 border border-stone-200"
+                    }`}
+                  >
+                    58mm (Compact)
+                  </button>
+                </div>
+              </div>
+
               <div className="mt-6 flex gap-2 no-print font-sans">
                 <button
                   onClick={() => {
-                    window.print();
-                    LocalDB.addAuditLog("Receipt Printed", `Bill slip printed for Order: ${showBillPrint.id}`, "Admin");
+                    PhysicalThermalPrinter.printCustomerBill(showBillPrint, settings, selectedPaperWidth);
+                    LocalDB.addAuditLog("Receipt Printed", `Bill slip printed for Order: ${showBillPrint.id} (${selectedPaperWidth})`, "Admin");
                   }}
                   className="w-1/2 py-2.5 bg-stone-900 text-white hover:bg-stone-850 rounded-lg text-xs font-bold tracking-wider cursor-pointer"
                 >

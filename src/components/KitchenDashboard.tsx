@@ -8,7 +8,7 @@ import {
   Wifi, WifiOff, Cpu, ListOrdered, FileCode, CheckSquare, Settings, PlaySquare,
   Tv, Eye, X, ExternalLink, Square, Zap
 } from "lucide-react";
-import { PhysicalThermalPrinter } from "../lib/printerService";
+import { PhysicalThermalPrinter, CutiePrinter, PrintJob } from "../lib/printerService";
 
 export default function KitchenDashboard() {
   const [kots, setKots] = useState<KOT[]>([]);
@@ -30,27 +30,66 @@ export default function KitchenDashboard() {
   const [autoPrint, setAutoPrint] = useState(true);
   const [printerStatus, setPrinterStatus] = useState<"connected" | "reconnecting" | "offline">("connected");
   const [printerWidth, setPrinterWidth] = useState<"58mm" | "80mm" | "raw">("80mm");
-  const [printerLogs, setPrinterLogs] = useState<string[]>([
-    `[${new Date().toLocaleTimeString()}] ESC/POS System Initialized.`,
-    `[${new Date().toLocaleTimeString()}] Connected to TCP://192.168.1.185:9100. READY.`
-  ]);
+  const [printerLogs, setPrinterLogs] = useState<string[]>([]);
+  const [printerQueue, setPrinterQueue] = useState<PrintJob[]>([]);
   const [activePrintingKot, setActivePrintingKot] = useState<KOT | null>(null);
   const [activePrinterTab, setActivePrinterTab] = useState<"emulator" | "queue" | "logs">("emulator");
 
   const printingQueueIds = useRef<Set<string>>(new Set());
 
   const addPrinterLog = (msg: string) => {
-    setPrinterLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 39)]);
+    CutiePrinter.addLog(msg);
   };
 
   const onReconnectPrinter = async () => {
     setPrinterStatus("reconnecting");
-    addPrinterLog("Attempting to handshake with ESC/POS controller...");
+    CutiePrinter.addLog("Attempting to handshake with ESC/POS controller...");
     setTimeout(() => {
-      setPrinterStatus("connected");
-      addPrinterLog("Handshake verified! ESC/POS socket connected. (Port 9100)");
+      CutiePrinter.setStatus("connected");
     }, 1200);
   };
+
+  useEffect(() => {
+    setPrinterStatus(CutiePrinter.getStatus());
+    setPrinterLogs(CutiePrinter.getLogs());
+    setPrinterQueue(CutiePrinter.getQueue());
+
+    const handleStatus = (e: any) => {
+      setPrinterStatus(e.detail);
+    };
+    const handleLogs = () => {
+      setPrinterLogs(CutiePrinter.getLogs());
+    };
+    const handleQueue = () => {
+      setPrinterQueue(CutiePrinter.getQueue());
+    };
+    const handlePlaySound = () => {
+      playThermalPrinterSound(1500);
+    };
+    const handlePrintingStarted = (e: any) => {
+      setActivePrintingKot(e.detail);
+    };
+    const handlePrintingEnded = () => {
+      setActivePrintingKot(null);
+    };
+
+    window.addEventListener("cutie_printer_status_changed", handleStatus);
+    window.addEventListener("cutie_printer_logs_updated", handleLogs);
+    window.addEventListener("cutie_printer_queue_updated", handleQueue);
+    window.addEventListener("play_printer_sound", handlePlaySound);
+    window.addEventListener("printing_started", handlePrintingStarted);
+    window.addEventListener("printing_ended", handlePrintingEnded);
+
+    return () => {
+      window.removeEventListener("cutie_printer_status_changed", handleStatus);
+      window.removeEventListener("cutie_printer_logs_updated", handleLogs);
+      window.removeEventListener("cutie_printer_queue_updated", handleQueue);
+      window.removeEventListener("play_printer_sound", handlePlaySound);
+      window.removeEventListener("printing_started", handlePrintingStarted);
+      window.removeEventListener("printing_ended", handlePrintingEnded);
+    };
+  }, []);
+
 
   const playThermalPrinterSound = (durationMs = 1500) => {
     if (isMuted) return;
@@ -138,13 +177,14 @@ export default function KitchenDashboard() {
 
     // Event listeners
     const handleSync = () => loadData(true);
-    window.addEventListener("storage", handleSync);
-    window.addEventListener("kots_updated", handleSync);
-    window.addEventListener("new_order", () => {
+    const handleNewOrder = () => {
       setTimeout(() => {
         loadData(true);
       }, 300);
-    });
+    };
+    window.addEventListener("storage", handleSync);
+    window.addEventListener("kots_updated", handleSync);
+    window.addEventListener("new_order", handleNewOrder);
 
     // Realtime polling fallback
     const interval = setInterval(() => {
@@ -185,6 +225,7 @@ export default function KitchenDashboard() {
     return () => {
       window.removeEventListener("storage", handleSync);
       window.removeEventListener("kots_updated", handleSync);
+      window.removeEventListener("new_order", handleNewOrder);
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
@@ -192,39 +233,8 @@ export default function KitchenDashboard() {
 
   // Handle thermal receipt physical/virtual compilation
   const simulateThermalPrint = async (kot: KOT, isReprint = false) => {
-    if (printingQueueIds.current.has(kot.id) && !isReprint) return;
-
-    printingQueueIds.current.add(kot.id);
-
-    if (printerStatus === "offline") {
-      addPrinterLog(`[ERROR] Spool locked: KOT ${kot.id} printing suspended. Interface is offline.`);
-      printingQueueIds.current.delete(kot.id);
-      return;
-    }
-
-    addPrinterLog(`Spooling thermal ticket KOT ${kot.id} (${kot.orderType.toUpperCase()})...`);
-    setActivePrintingKot(kot);
-
-    // Play stepper motor sounds
-    playThermalPrinterSound(1500);
-
-    // Hold visual feed active
-    await new Promise(r => setTimeout(r, 1800));
-
-    try {
-      if (!isReprint) {
-        await LocalDB.apiUpdateKOTPrinted(kot.id, true);
-        addPrinterLog(`KOT ${kot.id} successfully fed, sliced, and flagged as PRINTED.`);
-      } else {
-        addPrinterLog(`Manual reprint job for KOT ${kot.id} completed successfully.`);
-      }
-    } catch (err: any) {
-      addPrinterLog(`[WARNING] KOT database flag update failed: ${err.message || err}`);
-    } finally {
-      setActivePrintingKot(null);
-      printingQueueIds.current.delete(kot.id);
-      loadData(true);
-    }
+    addPrinterLog(`Queueing print job to Cutie Printer: KOT ${kot.id}`);
+    CutiePrinter.enqueue(kot);
   };
 
   // Auto processing effects: detect unprinted KOTs
@@ -765,28 +775,36 @@ export default function KitchenDashboard() {
             {/* Tab: Spool Queue */}
             {activePrinterTab === "queue" && (
               <div className="pt-3 h-[160px] overflow-y-auto space-y-2 scrollbar-thin">
-                {kots.length === 0 ? (
+                {printerQueue.length === 0 ? (
                   <p className="text-xs text-stone-500 italic py-6 text-center font-sans">No print queue records saved.</p>
                 ) : (
-                  kots.slice(0, 8).map(kot => (
-                    <div key={kot.id} className="flex items-center justify-between bg-stone-950 p-2 rounded-xl border border-stone-850 hover:border-stone-800 font-mono text-[10px]">
+                  printerQueue.map(job => (
+                    <div key={job.id} className="flex items-center justify-between bg-stone-950 p-2 rounded-xl border border-stone-850 hover:border-stone-800 font-mono text-[10px]">
                       <div className="space-y-1 pl-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-white font-bold">{kot.id}</span>
+                          <span className="text-white font-bold">{job.kotId}</span>
                           <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${
-                            kot.printed 
+                            job.status === "Printed" 
                               ? "bg-emerald-950/80 text-emerald-400 border border-emerald-900/45" 
+                              : job.status === "Printing"
+                              ? "bg-blue-950/80 text-blue-400 border border-blue-900/45 animate-pulse"
                               : "bg-amber-950/80 text-amber-400 border border-amber-900/45"
                           }`}>
-                            {kot.printed ? "PRINTED" : "QUEUED"}
+                            {job.status}
                           </span>
+                          {job.retryCount > 0 && (
+                            <span className="text-[8px] text-red-400">Retry: {job.retryCount}/3</span>
+                          )}
                         </div>
-                        <p className="text-stone-500 tracking-wide text-[9px]">Table: {kot.tableNumber} | Order Ref: {kot.orderId}</p>
+                        <p className="text-stone-500 tracking-wide text-[9px]">Table: {job.data.tableNumber || "Takeaway"} | {job.error ? `Error: ${job.error}` : "Status: Active"}</p>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => simulateThermalPrint(kot, true)}
+                        onClick={() => {
+                          addPrinterLog(`Manual reprint requested for KOT ${job.kotId}`);
+                          CutiePrinter.enqueue(job.data);
+                        }}
                         className="flex items-center gap-1 bg-stone-900 hover:bg-stone-850 hover:text-white text-stone-300 px-2 py-1 rounded-lg border border-stone-850 active:scale-95 transition-all text-[9.5px] cursor-pointer mr-1"
                       >
                         <Printer className="w-3 h-3 text-[#d4af37]" />
@@ -806,7 +824,7 @@ export default function KitchenDashboard() {
                   <div className="flex gap-1">
                     <button
                       type="button"
-                      onClick={() => setPrinterStatus(printerStatus === "offline" ? "connected" : "offline")}
+                      onClick={() => CutiePrinter.setStatus(printerStatus === "offline" ? "connected" : "offline")}
                       className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold transition-all border ${
                         printerStatus === "offline" 
                           ? "bg-red-950 text-red-400 border-red-900 hover:bg-red-900" 

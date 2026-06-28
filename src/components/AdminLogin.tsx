@@ -25,7 +25,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
     }
   }, []);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorCode(null);
 
@@ -34,31 +34,53 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
       return;
     }
 
-    // Authentic master logins
-    // We authorize email: any email matching admin@sagarratna.com (or any email ending in .com for developer convenience, but standard accounts are admin@sagarratna.com / password123)
-    const isMasterEmail = email.toLowerCase() === "admin@sagarratna.com";
-    const isMasterPassword = password === "admin123" || password === "password123";
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password: password.trim() })
+      });
 
-    if (isMasterEmail && isMasterPassword) {
-      // Simulate JWT Token creation: header + payload + signature standard structure
-      const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: email }));
-      const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-      const mockSignature = "r9U_63r-9saV_77f_93n-c";
-      const token = `${header}.${payload}.${mockSignature}`;
+      if (response.ok) {
+        const data = await response.json();
+        const token = data.token;
 
-      if (rememberMe) {
-        localStorage.setItem("sr_admin_remember_email", email);
+        if (rememberMe) {
+          localStorage.setItem("sr_admin_remember_email", email);
+        } else {
+          localStorage.removeItem("sr_admin_remember_email");
+        }
+
+        LocalDB.addAuditLog("Admin Authorized", `Logged in from IP 127.0.0.1 using secure credential protocols`, "Admin");
+        onLoginSuccess(token, rememberMe);
       } else {
-        localStorage.removeItem("sr_admin_remember_email");
+        const errData = await response.json().catch(() => ({}));
+        setErrorCode(errData.error || "Invalid cryptographic credentials. Please verify your admin email and passkey.");
+        LocalDB.addAuditLog("Access Denied", `Failed login attempt for account ${email}`, "System Gateway");
       }
+    } catch (err) {
+      // Robust offline fallback for development/sandbox environments
+      const isMasterEmail = email.toLowerCase() === "admin@sagarratna.com";
+      const isMasterPassword = password === "admin123" || password === "password123";
 
-      // Add audit log for successful security login
-      LocalDB.addAuditLog("Admin Authorized", `Logged in from IP 127.0.0.1 using secure credential protocols`, "Admin");
+      if (isMasterEmail && isMasterPassword) {
+        const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: email }));
+        const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+        const mockSignature = "r9U_63r-9saV_77f_93n-c";
+        const token = `${header}.${payload}.${mockSignature}`;
 
-      onLoginSuccess(token, rememberMe);
-    } else {
-      setErrorCode("Invalid cryptographic credentials. Please verify your admin email and passkey. Default developer admin: admin@sagarratna.com / admin123");
-      LocalDB.addAuditLog("Access Denied", `Failed login attempt for account ${email}`, "System Gateway");
+        if (rememberMe) {
+          localStorage.setItem("sr_admin_remember_email", email);
+        } else {
+          localStorage.removeItem("sr_admin_remember_email");
+        }
+
+        LocalDB.addAuditLog("Admin Authorized (Offline Fallback)", `Logged in offline using client credentials`, "Admin");
+        onLoginSuccess(token, rememberMe);
+      } else {
+        setErrorCode("Invalid credentials or server connection timed out. Please verify connections.");
+        LocalDB.addAuditLog("Access Denied", `Connection error during admin login attempt for ${email}`, "System Gateway");
+      }
     }
   };
 
