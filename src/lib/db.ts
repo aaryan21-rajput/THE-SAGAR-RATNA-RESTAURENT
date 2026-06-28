@@ -387,6 +387,23 @@ if (typeof window !== "undefined") {
 
 // Database state managers with both offline localStorage caching and full-stack Express API integration
 export class LocalDB {
+  private static lastOrderSignatures = new Map<string, number>();
+
+  static getNextKOTNumber(): string {
+    const kots = this.getKOTs();
+    let maxNum = 0;
+    for (const k of kots) {
+      if (k.id && k.id.startsWith("KOT-")) {
+        const num = parseInt(k.id.substring(4), 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+    const nextNum = maxNum + 1;
+    return `KOT-${String(nextNum).padStart(4, "0")}`;
+  }
+
   // Recipe details mapped to culinary recipes to support automated ingredient deductions
   static getRecipeForMenuItem(menuItemId: string, name: string): { ingredientId: string; quantity: number }[] {
     const nameLower = name.toLowerCase();
@@ -749,6 +766,20 @@ export class LocalDB {
   }
 
   static async apiAddOrder(order: Omit<Order, "id" | "createdAt">): Promise<Order> {
+    // Fingerprint request deduplication check to prevent duplicate clicks and rapid retries
+    const signature = `${order.orderType}_${order.tableNumber || ""}_${order.customerName}_${order.subtotal}_${order.items.map(i => `${i.menuItemId}:${i.quantity}:${i.customization || ""}`).join(",")}`;
+    const now = Date.now();
+    const lastTime = this.lastOrderSignatures.get(signature);
+    if (lastTime && now - lastTime < 400) {
+      console.warn("[Deduplication] Duplicate order submission detected. Rejecting duplicate request.");
+      const lastOrders = this.getOrders();
+      if (lastOrders.length > 0) {
+        return lastOrders[0];
+      }
+      throw new Error("Duplicate order submission detected.");
+    }
+    this.lastOrderSignatures.set(signature, now);
+
     // Core boundary validation for Table QR code source
     if (order.orderType === "dine-in") {
       if (!order.tableNumber) {
@@ -839,8 +870,7 @@ export class LocalDB {
       this.saveOrders(updatedOrders);
 
       // 5. Generate and Print Incremental KOT containing ONLY the newly added items!
-      const kotCount = this.getKOTs().length + 1;
-      const kotNumber = `KOT-${String(kotCount).padStart(4, "0")}`;
+      const kotNumber = this.getNextKOTNumber();
 
       const freshKOT: KOT = {
         id: kotNumber,
@@ -888,8 +918,7 @@ export class LocalDB {
 
     const ordersList = this.getOrders();
     const newId = `SR-${1000 + ordersList.length + Math.floor(Math.random() * 100)}`;
-    const kotCount = this.getKOTs().length + 1;
-    const kotNumber = `KOT-${String(kotCount).padStart(4, "0")}`;
+    const kotNumber = this.getNextKOTNumber();
 
     const fullOrder: Order = {
       ...order,
@@ -1026,6 +1055,10 @@ export class LocalDB {
         const localKOTs = this.getKOTs();
         localKOTs.unshift(freshKOT);
         this.saveKOTs(localKOTs);
+
+        // Record every generated KOT in the audit log with precise details
+        const logDetails = `KOT Number: ${freshKOT.id}, Order Number: ${freshKOT.orderId}, Bill Number: ${freshKOT.orderId}, Table Number: ${freshKOT.tableNumber}, Timestamp: ${freshKOT.createdAt || new Date().toISOString()}, User/Captain: Captain, Print Status: Pending`;
+        this.addAuditLog("KOT Generated", logDetails, "Captain");
 
         // Queue print job to Cutie Printer automatically!
         try {
@@ -1562,6 +1595,10 @@ export class LocalDB {
     if (!kots.some(k => k.id === kot.id)) {
       kots.unshift({ ...kot, printed: kot.printed || false });
       this.saveKOTs(kots);
+
+      // Record every generated KOT in the audit log with precise details
+      const logDetails = `KOT Number: ${kot.id}, Order Number: ${kot.orderId}, Bill Number: ${kot.orderId}, Table Number: ${kot.tableNumber}, Timestamp: ${kot.createdAt || new Date().toISOString()}, User/Captain: Captain, Print Status: ${kot.printed ? "Printed" : "Pending"}`;
+      this.addAuditLog("KOT Generated", logDetails, "Captain");
     }
 
     return kot;

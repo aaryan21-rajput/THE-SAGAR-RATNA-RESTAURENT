@@ -336,7 +336,9 @@ export class PhysicalThermalPrinter {
       iframe.contentWindow?.print();
       // Remove temporary element gracefully
       setTimeout(() => {
-        document.body.removeChild(iframe);
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
       }, 1000);
     }, 500);
   }

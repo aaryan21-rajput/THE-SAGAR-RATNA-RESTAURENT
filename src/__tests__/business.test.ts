@@ -773,4 +773,142 @@ describe("Restaurant Management Enterprise - Core Business Logic Suite", () => {
       expect(result.id).toBeDefined();
     });
   });
+
+  describe("KOT Generation and Enforcements Workflow (Deduplication, Sequence, Merging)", () => {
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it("should generate exactly one KOT for the first order", async () => {
+      const orderData = {
+        customerName: "Chef Tester",
+        phoneNumber: "+91 99999 00001",
+        email: "test@sagar.com",
+        orderType: "dine-in" as const,
+        tableNumber: "5",
+        items: [{ menuItemId: "m1", name: "Butter Masala Dosa", price: 150, quantity: 1, customization: "Extra Butter" }],
+        subtotal: 150,
+        gst: 7.5,
+        packagingCharge: 0,
+        discountAmount: 0,
+        grandTotal: 157.5,
+        paymentStatus: "Pending" as const,
+        orderStatus: "New Order" as const,
+        paymentMethod: "UPI" as const,
+        branch: "CP"
+      };
+
+      const beforeKOTs = LocalDB.getKOTs().length;
+      const order = await LocalDB.apiAddOrder(orderData);
+      const afterKOTs = LocalDB.getKOTs();
+
+      expect(order).toBeDefined();
+      expect(afterKOTs.length).toBe(beforeKOTs + 1);
+
+      const generatedKot = afterKOTs[0];
+      expect(generatedKot.orderId).toBe(order.id);
+      expect(generatedKot.items.length).toBe(1);
+      expect(generatedKot.items[0].menuItemId).toBe("m1");
+    });
+
+    it("should generate separate KOT with only new items when merging orders on same bill", async () => {
+      const order1 = {
+        customerName: "Merge Tester",
+        phoneNumber: "+91 99999 00002",
+        email: "merge@sagar.com",
+        orderType: "dine-in" as const,
+        tableNumber: "6",
+        items: [{ menuItemId: "m1", name: "Butter Masala Dosa", price: 150, quantity: 1 }],
+        subtotal: 150,
+        gst: 7.5,
+        packagingCharge: 0,
+        discountAmount: 0,
+        grandTotal: 157.5,
+        paymentStatus: "Pending" as const,
+        orderStatus: "New Order" as const,
+        paymentMethod: "UPI" as const,
+        branch: "CP"
+      };
+
+      // 1. First order
+      const firstPlaced = await LocalDB.apiAddOrder(order1);
+      const kotsAfterFirst = LocalDB.getKOTs();
+      expect(kotsAfterFirst.length).toBe(1);
+      expect(kotsAfterFirst[0].id).toBe("KOT-0001");
+
+      // 2. Second order (same table/customer, open bill -> will merge)
+      const order2 = {
+        ...order1,
+        items: [{ menuItemId: "m2", name: "Idli Sambar", price: 80, quantity: 2, customization: "Hot sambar" }],
+        subtotal: 160,
+        gst: 8,
+        grandTotal: 168
+      };
+
+      const secondPlaced = await LocalDB.apiAddOrder(order2);
+      
+      // The bill ID should remain the same (merged)
+      expect(secondPlaced.id).toBe(firstPlaced.id);
+
+      // Total items in the merged bill should be both m1 and m2
+      expect(secondPlaced.items.length).toBe(2);
+      expect(secondPlaced.items.some(i => i.menuItemId === "m1")).toBe(true);
+      expect(secondPlaced.items.some(i => i.menuItemId === "m2")).toBe(true);
+
+      // KOTs count should be 2 now
+      const kotsAfterSecond = LocalDB.getKOTs();
+      expect(kotsAfterSecond.length).toBe(2);
+
+      // KOT numbering must be unique and sequential
+      expect(kotsAfterSecond[0].id).toBe("KOT-0002");
+      expect(kotsAfterSecond[1].id).toBe("KOT-0001");
+
+      // The new KOT (KOT-0002) must contain ONLY the newly added item (Idli Sambar)
+      const newKot = kotsAfterSecond.find(k => k.id === "KOT-0002");
+      expect(newKot).toBeDefined();
+      expect(newKot?.items.length).toBe(1);
+      expect(newKot?.items[0].menuItemId).toBe("m2");
+      expect(newKot?.items[0].quantity).toBe(2);
+
+      // Audit logs should reflect "KOT Generated" with exact details
+      const auditLogs = LocalDB.getAuditLogs();
+      const kotLog = auditLogs.find(l => l.action === "KOT Generated" && l.details.includes("KOT-0002"));
+      expect(kotLog).toBeDefined();
+      expect(kotLog?.details).toContain("Order Number: " + firstPlaced.id);
+      expect(kotLog?.details).toContain("Table Number: 6");
+    });
+
+    it("should prevent duplicate KOT generation under concurrent or repeated requests", async () => {
+      const orderData = {
+        customerName: "Duplication Tester",
+        phoneNumber: "+91 99999 00003",
+        email: "dup@sagar.com",
+        orderType: "dine-in" as const,
+        tableNumber: "7",
+        items: [{ menuItemId: "m3", name: "Rava Onion Dosa", price: 180, quantity: 1 }],
+        subtotal: 180,
+        gst: 9,
+        packagingCharge: 0,
+        discountAmount: 0,
+        grandTotal: 189,
+        paymentStatus: "Pending" as const,
+        orderStatus: "New Order" as const,
+        paymentMethod: "UPI" as const,
+        branch: "CP"
+      };
+
+      // Place first order
+      const orderPromise1 = LocalDB.apiAddOrder(orderData);
+      
+      // Place second order immediately with identical details (repeated click simulation)
+      const orderPromise2 = LocalDB.apiAddOrder(orderData);
+
+      await Promise.all([orderPromise1, orderPromise2.catch(err => err)]);
+
+      // Let's verify KOTs count is exactly 1 (deduplicated!)
+      const kots = LocalDB.getKOTs();
+      expect(kots.length).toBe(1);
+      expect(kots[0].id).toBe("KOT-0001");
+    });
+  });
 });
