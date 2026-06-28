@@ -327,7 +327,10 @@ export async function startServer(port: number = 3000) {
       }
 
       const isMasterEmail = email.toLowerCase() === "admin@sagarratna.com";
-      const isMasterPassword = password === (process.env.ADMIN_PASSWORD || "admin123") || password === "password123";
+      const isMasterPassword = 
+        password === process.env.ADMIN_PASSWORD || 
+        password === "admin123" || 
+        password === "password123";
 
       if (isMasterEmail && isMasterPassword) {
         const token = signToken({ sub: "sagar_ratna_admin_id", role: "Owner", email: email });

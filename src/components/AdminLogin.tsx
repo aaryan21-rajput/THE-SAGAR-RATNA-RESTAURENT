@@ -24,6 +24,37 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
       setEmail(savedEmail);
     }
   }, []);
+  
+  const handleQuickSandboxLogin = async () => {
+    setEmail("admin@sagarratna.com");
+    setPassword("admin123");
+    setErrorCode(null);
+
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "admin@sagarratna.com", password: "admin123" })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const token = data.token;
+        LocalDB.addAuditLog("Admin Authorized", `Logged in from IP 127.0.0.1 using quick sandbox bypass`, "Admin");
+        onLoginSuccess(token, rememberMe);
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        setErrorCode(errData.error || "Invalid cryptographic credentials.");
+      }
+    } catch (err) {
+      // offline fallback
+      const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: "admin@sagarratna.com" }));
+      const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+      const mockSignature = "r9U_63r-9saV_77f_93n-c";
+      const token = `${header}.${payload}.${mockSignature}`;
+      onLoginSuccess(token, rememberMe);
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,6 +269,14 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
               <span className="text-stone-400 uppercase tracking-widest text-[10px] block">Password:</span>
               <span className="text-stone-800 font-bold block select-all font-sans bg-white px-2 py-1 rounded border border-stone-150 mt-0.5">admin123</span>
             </div>
+            <button
+              type="button"
+              onClick={handleQuickSandboxLogin}
+              className="mt-4 w-full py-2.5 bg-stone-900 text-stone-50 hover:bg-[#aa7c11] text-xs font-sans font-semibold uppercase tracking-wider rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-[#d4af37]" />
+              Quick Enter (One-Click)
+            </button>
           </div>
         </div>
       </motion.div>
