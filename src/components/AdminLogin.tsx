@@ -62,6 +62,9 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         LocalDB.addAuditLog("Admin Authorized", `Logged in from IP 127.0.0.1 using secure credential protocols`, "Admin");
         onLoginSuccess(token, rememberMe);
       } else {
+        if (response.status === 404) {
+          throw new Error("Backend not found, falling back to offline mode.");
+        }
         const errData = await response.json().catch(() => ({}));
         setErrorCode(errData.error || "Invalid cryptographic credentials. Please verify your admin email and passkey.");
         LocalDB.addAuditLog("Access Denied", `Failed login attempt for account ${email}`, "System Gateway");
