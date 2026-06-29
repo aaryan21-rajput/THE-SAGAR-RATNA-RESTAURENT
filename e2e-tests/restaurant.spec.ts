@@ -29,23 +29,16 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     console.log('Mobile view responsive design verified.');
   });
 
-  test('02. Admin Login', async ({ page }) => {
-    console.log('--- Test 2: Admin Login ---');
+  test('02. Admin Dashboard Direct Access', async ({ page }) => {
+    console.log('--- Test 2: Admin Dashboard Direct Access ---');
     await page.goto('/#admin');
-    await page.waitForSelector('input[type="email"]');
     
-    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'Admin@12345');
-    
-    // Click authorization button
-    await page.click('button#admin-login-btn');
-    
-    // Verify dashboard dashboard visibility
+    // Verify dashboard visibility directly without login
     await page.waitForSelector('text=Administration Overview');
     await expect(page.locator('text=Administration Overview')).toBeVisible();
     
-    await page.screenshot({ path: 'screenshots/01_admin_login_success.png' });
-    console.log('Admin login verified successfully.');
+    await page.screenshot({ path: 'screenshots/01_admin_dashboard_direct.png' });
+    console.log('Admin dashboard direct access verified successfully.');
   });
 
   test('03. Customer Ordering', async ({ page }) => {
@@ -97,11 +90,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
 
   test('04. Table Booking & QR Management', async ({ page }) => {
     console.log('--- Test 4: Table Booking ---');
-    // Log in as Admin
+    // Go directly to Admin Dashboard
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'Admin@12345');
-    await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
     // Click on Table QR Codes sidebar tab
@@ -128,11 +118,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
 
   test('05. Inventory Alerts and Status Check', async ({ page }) => {
     console.log('--- Test 5: Inventory ---');
-    // Log in as Admin
+    // Go directly to Admin Dashboard
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'Admin@12345');
-    await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
     // Scroll and check for Active Low Inventory Alerts box
@@ -145,11 +132,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
 
   test('06. Reports & Financial Insights', async ({ page }) => {
     console.log('--- Test 6: Reports ---');
-    // Log in as Admin
+    // Go directly to Admin Dashboard
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'Admin@12345');
-    await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
     // Go to "Revenue Insights" tab
@@ -163,11 +147,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
 
   test('07. Kitchen Display (KDS)', async ({ page }) => {
     console.log('--- Test 7: Kitchen Display ---');
-    // Log in as Admin
+    // Go directly to Admin Dashboard
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'Admin@12345');
-    await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
     // Go to "Kitchen Display (KDS)" tab
@@ -181,11 +162,8 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
 
   test('08. Billing & Order Settle Management', async ({ page }) => {
     console.log('--- Test 8: Billing ---');
-    // Log in as Admin
+    // Go directly to Admin Dashboard
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'Admin@12345');
-    await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
     // Go to "Order Management" tab
@@ -197,24 +175,21 @@ test.describe('Sagar Ratna Full Restaurant Management E2E Flow', () => {
     console.log('Billing & Order Dispatch Desk verified.');
   });
 
-  test('09. Admin Logout', async ({ page }) => {
-    console.log('--- Test 9: Admin Logout ---');
-    // Log in as Admin
+  test('09. Admin Exit Panel', async ({ page }) => {
+    console.log('--- Test 9: Admin Exit Panel ---');
+    // Go directly to Admin Dashboard
     await page.goto('/#admin');
-    await page.fill('input[type="email"]', 'aaryanrajputofficial@gmail.com');
-    await page.fill('input[type="password"]', 'Admin@12345');
-    await page.click('button#admin-login-btn');
     await page.waitForSelector('text=Administration Overview');
     
-    // Click manual Logout button
-    await page.click('button:has-text("Logout")');
+    // Click Exit Admin button
+    await page.click('button:has-text("Exit Admin")');
     
-    // Assert redirect back to admin login or home
-    await page.waitForSelector('input[type="email"]');
-    await expect(page.locator('input[type="email"]')).toBeVisible();
+    // Assert redirect back to home page (where 100% Pure Vegetarian Sagar Ratna banner is shown)
+    const vegBanner = page.locator('text=100% Pure Vegetarian Sagar Ratna');
+    await expect(vegBanner).toBeVisible();
     
-    await page.screenshot({ path: 'screenshots/08_logout_success.png' });
-    console.log('Admin logout completed successfully.');
+    await page.screenshot({ path: 'screenshots/08_exit_admin_success.png' });
+    console.log('Admin panel exit completed successfully.');
   });
 
 });

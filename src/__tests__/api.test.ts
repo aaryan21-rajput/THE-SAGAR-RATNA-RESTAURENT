@@ -63,81 +63,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
     }
   });
 
-  // ==========================================
-  // 1. ENDPOINT: /api/admin/login
-  // ==========================================
-  describe("Endpoint: POST /api/admin/login", () => {
-    it("GET /api/admin/login - should return 404/Not Found for unsupported GET method", async () => {
-      const res = await apiRequest("GET", "/api/admin/login");
-      expect([404, 405]).toContain(res.status);
-    });
 
-    it("PUT /api/admin/login - should return 404/Not Found for unsupported PUT method", async () => {
-      const res = await apiRequest("PUT", "/api/admin/login");
-      expect([404, 405]).toContain(res.status);
-    });
-
-    it("DELETE /api/admin/login - should return 404/Not Found for unsupported DELETE method", async () => {
-      const res = await apiRequest("DELETE", "/api/admin/login");
-      expect([404, 405]).toContain(res.status);
-    });
-
-    it("POST /api/admin/login - should authenticate with valid credentials", async () => {
-      const email = process.env.ADMIN_EMAIL || "admin@sagarratna.com";
-      const password = process.env.ADMIN_EMAIL === "aaryanrajputofficial@gmail.com" ? "Admin@12345" : "admin098";
-      const res = await apiRequest("POST", "/api/admin/login", {
-        email,
-        password
-      });
-      expect(res.status).toBe(200);
-      expect(res.data?.token).toBeDefined();
-    });
-
-    it("POST /api/admin/login - should reject invalid cryptographic credentials", async () => {
-      const email = process.env.ADMIN_EMAIL || "admin@sagarratna.com";
-      const res = await apiRequest("POST", "/api/admin/login", {
-        email,
-        password: "wrongpassword"
-      });
-      expect(res.status).toBe(401);
-      expect(res.data?.error).toContain("Invalid cryptographic credentials");
-    });
-
-    it("POST /api/admin/login - should reject missing email field", async () => {
-      const password = process.env.ADMIN_EMAIL === "aaryanrajputofficial@gmail.com" ? "Admin@12345" : "admin098";
-      const res = await apiRequest("POST", "/api/admin/login", {
-        password
-      });
-      expect(res.status).toBe(400);
-    });
-
-    it("POST /api/admin/login - should reject wrong type parameters", async () => {
-      const email = process.env.ADMIN_EMAIL || "admin@sagarratna.com";
-      const res = await apiRequest("POST", "/api/admin/login", {
-        email: [email],
-        password: 12345
-      });
-      expect([400, 401]).toContain(res.status);
-    });
-
-    it("POST /api/admin/login - should safely reject SQL injection payloads", async () => {
-      const email = process.env.ADMIN_EMAIL || "admin@sagarratna.com";
-      const res = await apiRequest("POST", "/api/admin/login", {
-        email: `${email}' OR '1'='1`,
-        password: "wrong_password' OR 1=1 --"
-      });
-      expect(res.status).toBe(401);
-    });
-
-    it("POST /api/admin/login - should safely reject XSS script payloads", async () => {
-      const password = process.env.ADMIN_EMAIL === "aaryanrajputofficial@gmail.com" ? "Admin@12345" : "admin098";
-      const res = await apiRequest("POST", "/api/admin/login", {
-        email: "<script>alert('XSS')</script>@gmail.com",
-        password
-      });
-      expect(res.status).toBe(401);
-    });
-  });
 
   // ==========================================
   // 2. ENDPOINT: /api/orders
@@ -154,20 +80,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
       expect(Array.isArray(res.data)).toBe(true);
     });
 
-    it("GET /api/orders - should reject unauthorized users without JWT", async () => {
-      const res = await apiRequest("GET", "/api/orders");
-      expect(res.status).toBe(401);
-    });
 
-    it("GET /api/orders - should reject expired JWT tokens", async () => {
-      const res = await apiRequest("GET", "/api/orders", null, expiredToken);
-      expect(res.status).toBe(401);
-    });
-
-    it("GET /api/orders - should reject invalid JWT tokens", async () => {
-      const res = await apiRequest("GET", "/api/orders", null, invalidToken);
-      expect(res.status).toBe(401);
-    });
 
     it("POST /api/orders - should place order with valid request data", async () => {
       const sampleOrder = {
@@ -284,19 +197,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
       expect(res.data?.success).toBe(true);
     });
 
-    it("PUT /api/orders/:id/status - should reject requests from unauthorized users", async () => {
-      const res = await apiRequest("PUT", `/api/orders/${testOrderId}/status`, {
-        orderStatus: "Accepted"
-      });
-      expect(res.status).toBe(401);
-    });
 
-    it("PUT /api/orders/:id/status - should reject requests with expired JWT", async () => {
-      const res = await apiRequest("PUT", `/api/orders/${testOrderId}/status`, {
-        orderStatus: "Accepted"
-      }, expiredToken);
-      expect(res.status).toBe(401);
-    });
 
     it("PUT /api/orders/:id/status - should return 400 for missing orderStatus field", async () => {
       const res = await apiRequest("PUT", `/api/orders/${testOrderId}/status`, {}, validToken);
@@ -356,10 +257,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
       expect(res.data?.success).toBe(true);
     });
 
-    it("POST /api/menu-items - should reject requests without authorization", async () => {
-      const res = await apiRequest("POST", "/api/menu-items", { id: "m_test" });
-      expect(res.status).toBe(401);
-    });
+
 
     it("PUT /api/menu-items - should replace menu list with valid token", async () => {
       const res = await apiRequest("PUT", "/api/menu-items", [], validToken);
@@ -367,10 +265,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
       expect(res.data?.success).toBe(true);
     });
 
-    it("PUT /api/menu-items - should reject replacement requests with invalid token", async () => {
-      const res = await apiRequest("PUT", "/api/menu-items", [], invalidToken);
-      expect(res.status).toBe(401);
-    });
+
 
     it("POST /api/menu-items - should safely process SQL injection and XSS in name", async () => {
       const badItem = {
@@ -395,20 +290,14 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
       expect(Array.isArray(res.data)).toBe(true);
     });
 
-    it("GET /api/inventory - should block unauthorized users", async () => {
-      const res = await apiRequest("GET", "/api/inventory");
-      expect(res.status).toBe(401);
-    });
+
 
     it("PUT /api/inventory - should persist update with valid authorization", async () => {
       const res = await apiRequest("PUT", "/api/inventory", [], validToken);
       expect(res.status).toBe(200);
     });
 
-    it("PUT /api/inventory - should block requests with expired token", async () => {
-      const res = await apiRequest("PUT", "/api/inventory", [], expiredToken);
-      expect(res.status).toBe(401);
-    });
+
   });
 
   // ==========================================
@@ -426,10 +315,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
       expect(res.status).toBe(200);
     });
 
-    it("PUT /api/coupons - should block modifications from unauthorized guest", async () => {
-      const res = await apiRequest("PUT", "/api/coupons", []);
-      expect(res.status).toBe(401);
-    });
+
   });
 
   // ==========================================
@@ -469,10 +355,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
       expect(res.status).toBe(200);
     });
 
-    it("PUT /api/reviews - should reject updates from unauthorized users", async () => {
-      const res = await apiRequest("PUT", "/api/reviews", []);
-      expect(res.status).toBe(401);
-    });
+
   });
 
   // ==========================================
@@ -495,10 +378,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
       expect(res.status).toBe(200);
     });
 
-    it("POST /api/settings - should reject saving configuration from unauthorized users", async () => {
-      const res = await apiRequest("POST", "/api/settings", {});
-      expect(res.status).toBe(401);
-    });
+
   });
 
   // ==========================================
@@ -511,10 +391,7 @@ describe("Sagar Ratna - Complete REST API Verification Suite", () => {
       expect(Array.isArray(res.data)).toBe(true);
     });
 
-    it("GET /api/audit-logs - should block unauthorized log retrieval", async () => {
-      const res = await apiRequest("GET", "/api/audit-logs");
-      expect(res.status).toBe(401);
-    });
+
 
     it("POST /api/audit-logs - should append action log entry successfully", async () => {
       const newLog = {

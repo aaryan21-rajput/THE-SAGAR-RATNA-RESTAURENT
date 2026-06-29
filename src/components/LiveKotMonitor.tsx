@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  Eye, 
-  Printer, 
-  FileText, 
-  ChevronRight, 
-  X, 
-  Clock, 
-  RefreshCw, 
-  UtensilsCrossed, 
+import {
+  Eye,
+  Printer,
+  FileText,
+  ChevronRight,
+  X,
+  Clock,
+  RefreshCw,
+  UtensilsCrossed,
   AlertCircle,
   TrendingUp,
+
   Sliders,
   CheckCircle2,
   Package,
@@ -137,7 +138,7 @@ export default function LiveKotMonitor() {
   const handleReprint = async (kot: KOT) => {
     try {
       CutiePrinter.enqueue(kot);
-      
+
       // Show alert or animation success
       const notification = new CustomEvent("print_alert", {
         detail: { message: `KOT ${kot.id} queued for printing successfully!`, type: "success" }
@@ -153,7 +154,7 @@ export default function LiveKotMonitor() {
 
   return (
     <div className="bg-white/80 backdrop-blur-md border border-stone-200/80 rounded-3xl p-6 shadow-xl space-y-6">
-      
+
       {/* Header section with Indigo look */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-stone-100 pb-5">
         <div className="space-y-1">
@@ -164,8 +165,8 @@ export default function LiveKotMonitor() {
           <h3 className="text-lg font-serif font-bold text-stone-900 uppercase tracking-wide">Live Kitchen Order Tickets</h3>
           <p className="text-xs text-stone-500 font-light">Monitor live cooking tickets and kitchen performance metrics synchronizing in real-time.</p>
         </div>
-        
-        <button 
+
+        <button
           onClick={() => loadKOTs(false)}
           className="self-start md:self-auto flex items-center gap-1 py-1.5 px-3 bg-white border border-stone-200 rounded-xl text-stone-600 text-xs hover:bg-stone-50 transition cursor-pointer font-semibold shadow-xs"
         >
@@ -250,8 +251,8 @@ export default function LiveKotMonitor() {
                   const createdTime = new Date(kot.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                   return (
-                    <tr 
-                      key={kot.id} 
+                    <tr
+                      key={kot.id}
                       className={`hover:bg-slate-50/60 transition-colors ${kot.status === "New Order" ? "bg-amber-50/10 font-medium" : ""}`}
                     >
                       <td className="py-3 px-4 font-mono font-bold text-stone-900 border-none">
@@ -266,11 +267,10 @@ export default function LiveKotMonitor() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center border-none">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider font-mono ${
-                          kot.orderType === "dine-in" ? "bg-indigo-50 border border-indigo-200/20 text-indigo-700" :
-                          kot.orderType === "takeaway" ? "bg-amber-50 border border-amber-200/20 text-amber-700" :
-                          "bg-purple-50 border border-purple-200/20 text-purple-700"
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider font-mono ${kot.orderType === "dine-in" ? "bg-indigo-50 border border-indigo-200/20 text-indigo-700" :
+                            kot.orderType === "takeaway" ? "bg-amber-50 border border-amber-200/20 text-amber-700" :
+                              "bg-purple-50 border border-purple-200/20 text-purple-700"
+                          }`}>
                           {kot.orderType}
                         </span>
                       </td>
@@ -295,7 +295,7 @@ export default function LiveKotMonitor() {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          
+
                           <button
                             onClick={() => handleReprint(kot)}
                             title="Re-Spool Printer Job"
@@ -459,15 +459,14 @@ export default function LiveKotMonitor() {
                     <button
                       key={width}
                       onClick={() => setPreviewWidth(width)}
-                      className={`px-3 py-1 text-[10px] font-mono font-bold rounded-md transition cursor-pointer ${
-                        previewWidth === width ? "bg-white text-stone-900 border border-stone-250/20 shadow-xs" : "text-stone-500 hover:text-stone-850"
-                      }`}
+                      className={`px-3 py-1 text-[10px] font-mono font-bold rounded-md transition cursor-pointer ${previewWidth === width ? "bg-white text-stone-900 border border-stone-250/20 shadow-xs" : "text-stone-500 hover:text-stone-850"
+                        }`}
                     >
                       {width}
                     </button>
                   ))}
                 </div>
-                
+
                 <button
                   onClick={() => setPreviewKot(null)}
                   className="p-1.5 bg-stone-100 hover:bg-stone-200 rounded-full text-stone-500 cursor-pointer"
@@ -478,17 +477,17 @@ export default function LiveKotMonitor() {
 
               {/* Thermal Paper roll viewport */}
               <div className="flex-1 overflow-y-auto px-4 py-6 bg-stone-50 border border-stone-200 rounded-2xl flex justify-center">
-                <div 
+                <div
                   className="bg-white p-5 border border-stone-300 shadow-md font-mono text-[11px] leading-relaxed relative flex flex-col items-center"
                   style={{ width: previewWidth === "58mm" ? "210px" : "280px" }}
                 >
                   {/* Jagged paper edge decorations top and bottom */}
                   <div className="absolute top-0 inset-x-0 h-1.5 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-stone-200/30 to-transparent" />
-                  
+
                   {/* Brand header */}
                   <span className="font-black text-xs block text-stone-950 uppercase tracking-widest text-center">SAGAR RATNA</span>
                   <span className="text-[9px] text-stone-500 text-center block mb-2">PURE VEGETARIAN SPLENDOR</span>
-                  
+
                   <div className="w-full border-t border-dashed border-stone-400 my-1.5" />
 
                   {/* KOT Number */}
@@ -496,7 +495,7 @@ export default function LiveKotMonitor() {
                     <span>KOT ID:</span>
                     <span>{previewKot.id}</span>
                   </div>
-                  
+
                   {/* Table details */}
                   <div className="w-full flex justify-between font-bold text-stone-900 mt-1">
                     <span>TABLE NUMBER:</span>

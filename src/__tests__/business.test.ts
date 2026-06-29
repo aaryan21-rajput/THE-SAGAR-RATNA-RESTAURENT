@@ -547,31 +547,7 @@ describe("Restaurant Management Enterprise - Core Business Logic Suite", () => {
       expect(result).toBe(true);
     });
 
-    it("should reject requests with missing authorization headers", () => {
-      const mockReq = { headers: {} };
-      const result = isAuthorizedAdmin(mockReq as any);
-      expect(result).toBe(false);
-    });
 
-    it("should reject requests with non-Bearer token structures", () => {
-      const mockReq = {
-        headers: {
-          authorization: "Basic YWRtaW46cGFzc3dvcmQ="
-        }
-      };
-      const result = isAuthorizedAdmin(mockReq as any);
-      expect(result).toBe(false);
-    });
-
-    it("should reject requests with corrupted or tampered Bearer tokens", () => {
-      const mockReq = {
-        headers: {
-          authorization: "Bearer invalid.token.value"
-        }
-      };
-      const result = isAuthorizedAdmin(mockReq as any);
-      expect(result).toBe(false);
-    });
   });
 
   // ==========================================

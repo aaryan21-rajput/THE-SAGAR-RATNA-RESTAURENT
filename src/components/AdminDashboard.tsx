@@ -52,8 +52,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showBillPrint, setShowBillPrint] = useState<Order | null>(null);
   const [selectedPaperWidth, setSelectedPaperWidth] = useState<"58mm" | "80mm">("80mm");
 
-  // Inactivity tracking: 10 minutes auto-logout
-  const [secondsRemaining, setSecondsRemaining] = useState(600); // 10 minutes
+
 
   // Tab-specific interactive states
   const [orderFilter, setOrderFilter] = useState<string>("All");
@@ -189,40 +188,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   };
 
-  // Keep countdown timer for inactive auto logout
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSecondsRemaining(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          LocalDB.addAuditLog("Auto Logout", "Session terminated due to 10 minutes of inactivity", "Secure Gate");
-          onLogout();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
 
-    // Reset countdown on active events
-    const resetTimer = () => {
-      setSecondsRemaining(600);
-    };
-
-    const debounceEvents = ["mousedown", "keydown", "scroll", "touchstart"];
-    debounceEvents.forEach(evt => window.addEventListener(evt, resetTimer));
-
-    return () => {
-      clearInterval(timer);
-      debounceEvents.forEach(evt => window.removeEventListener(evt, resetTimer));
-    };
-  }, [onLogout]);
-
-  // Derived settings and stats
-  const formatTimeRemaining = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  };
 
   // CALCULATE SECTIONS
   // 1. Orders sub-breakdowns
@@ -743,21 +709,15 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {soundEnabled ? <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-[#aa7c11]" /> : <VolumeX className="w-3.5 h-3.5 md:w-4 md:h-4 text-stone-400" />}
           </button>
 
-          {/* Timeout alarm */}
-          <div className="hidden">
-            <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping" />
-            <span>⏱️ <strong className="text-stone-900">{formatTimeRemaining(secondsRemaining)}</strong></span>
-          </div>
-
           <button
             onClick={() => {
-              LocalDB.addAuditLog("Admin Logout", "Authorized admin logout triggered manually", "Admin");
+              LocalDB.addAuditLog("Admin Exit", "Admin panel exited manually", "Admin");
               onLogout();
             }}
-            className="p-1.5 md:px-3.5 md:py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-lg transition-colors flex items-center gap-1 cursor-pointer font-bold"
+            className="p-1.5 md:px-3.5 md:py-1.5 bg-stone-100 hover:bg-stone-200 border border-stone-300 text-stone-700 rounded-lg transition-colors flex items-center gap-1 cursor-pointer font-bold"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Logout</span>
+            <span className="hidden sm:inline">Exit Admin</span>
           </button>
         </div>
       </header>

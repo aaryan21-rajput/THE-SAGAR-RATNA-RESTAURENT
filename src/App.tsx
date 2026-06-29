@@ -7,7 +7,6 @@ import ChefSpecials from "./components/ChefSpecials";
 import Reviews from "./components/Reviews";
 import Footer from "./components/Footer";
 import CartOverlay from "./components/CartOverlay";
-import AdminLogin from "./components/AdminLogin";
 import AdminDashboard from "./components/AdminDashboard";
 import MobileView from "./components/MobileView";
 import { LocalDB } from "./lib/db";
@@ -82,19 +81,7 @@ export default function App() {
     };
   }, []);
 
-  const handleAdminLoginSuccess = (token: string, rememberMe: boolean) => {
-    if (rememberMe) {
-      localStorage.setItem("sr_admin_jwt", token);
-    } else {
-      sessionStorage.setItem("sr_admin_jwt", token);
-    }
-    setAdminToken(token);
-    setView("admin");
-    window.location.hash = "#admin";
-    
-    // Force sync the state once loaded
-    setMenuList(LocalDB.getMenuItems());
-  };
+
 
   const handleAdminLogout = () => {
     localStorage.removeItem("sr_admin_jwt");
@@ -208,10 +195,7 @@ export default function App() {
 
   // If view is administrative
   if (view === "admin") {
-    if (adminToken) {
-      return <AdminDashboard onLogout={handleAdminLogout} />;
-    }
-    return <AdminLogin onLoginSuccess={handleAdminLoginSuccess} />;
+    return <AdminDashboard onLogout={handleAdminLogout} />;
   }
 
   if (isMobile) {
