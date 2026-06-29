@@ -19,7 +19,6 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { KOT, KOTStatus, PrinterEmulatorLog } from "../types";
 import { LocalDB, supabase } from "../lib/db";
-import { PhysicalThermalPrinter, CutiePrinter } from "../lib/printerService";
 
 export default function LiveKotMonitor() {
   const [kots, setKots] = useState<KOT[]>([]);
@@ -136,11 +135,43 @@ export default function LiveKotMonitor() {
   // Reprint KOT function
   const handleReprint = async (kot: KOT) => {
     try {
-      CutiePrinter.enqueue(kot);
+      // Simulate reprint
+      await LocalDB.apiUpdateKOTPrinted(kot.id, true);
       
+      // Compute formatted receipt text
+      const itemsText = kot.items.map(item => `${item.quantity} x ${item.name}`).join("\n");
+      const receiptText = `
+================================
+          SAGAR RATNA
+================================
+KOT NUMBER: ${kot.id}
+TABLE: ${kot.tableNumber}
+ORDER TYPE: ${kot.orderType.toUpperCase()}
+--------------------------------
+ITEMS:
+${itemsText}
+--------------------------------
+NOTES:
+${kot.specialInstructions || "None"}
+--------------------------------
+Printed At:
+${new Date().toLocaleTimeString()}
+================================
+KITCHEN COPY
+`;
+
+      // Log in print emulators
+      await LocalDB.apiAddPrinterLog({
+        kotId: kot.id,
+        kotNumber: kot.id,
+        restaurantId: "sagar-ratna-subhash-nagar",
+        receiptText: receiptText.trim(),
+        printStatus: "Printed"
+      });
+
       // Show alert or animation success
       const notification = new CustomEvent("print_alert", {
-        detail: { message: `KOT ${kot.id} queued for printing successfully!`, type: "success" }
+        detail: { message: `KOT ${kot.id} reprinted successfully!`, type: "success" }
       });
       window.dispatchEvent(notification);
 

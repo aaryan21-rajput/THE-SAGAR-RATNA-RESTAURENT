@@ -11,10 +11,6 @@ import {
   Trash2,
   User,
   Clock,
-  Ticket,
-  Sparkles,
-  Wallet,
-  Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { CartItem, MenuItem } from "../types";
@@ -136,57 +132,6 @@ export default function CartOverlay({
     setOtpError(null);
   };
 
-  // Advanced Billing, Coupons, Wallet, Split Bills, and Loyalty Engine States
-  const [couponInput, setCouponInput] = useState("");
-  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
-  const [couponDiscount, setCouponDiscount] = useState(0);
-  const [couponMsg, setCouponMsg] = useState({ text: "", type: "" as "success" | "error" | "" });
-  
-  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
-  const [loyaltyPointsAvailable] = useState(380); // Guest has 380 loyalty points worth ₹38.00
-  const loyaltyPointsDiscount = useLoyaltyPoints ? Math.min(Math.round(cart.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0) * 0.1), 38) : 0; // Up to 10% or max 38 points
-
-  const [useWalletPayment, setUseWalletPayment] = useState(false);
-  const [walletBalance, setWalletBalance] = useState(750); // Guest has ₹750 wallet balance
-  const [splitBillCount, setSplitBillCount] = useState(1);
-  const [isSplitOpen, setIsSplitOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Card" | "Sagar Wallet">("Cash");
-
-  const handleApplyCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCouponMsg({ text: "", type: "" });
-    const code = couponInput.trim().toUpperCase();
-    if (!code) return;
-
-    if (code === "SAGAR20") {
-      if (subtotal < 250) {
-        setCouponMsg({ text: "SAGAR20 requires a minimum order of ₹250.", type: "error" });
-        return;
-      }
-      const disc = Math.round(subtotal * 0.2);
-      setCouponDiscount(disc);
-      setAppliedCouponCode("SAGAR20");
-      setCouponMsg({ text: `Code SAGAR20 applied! Saved ₹${disc}.`, type: "success" });
-    } else if (code === "WELCOME50") {
-      if (subtotal < 150) {
-        setCouponMsg({ text: "WELCOME50 requires a minimum order of ₹150.", type: "error" });
-        return;
-      }
-      setCouponDiscount(50);
-      setAppliedCouponCode("WELCOME50");
-      setCouponMsg({ text: "Code WELCOME50 applied! Saved ₹50.", type: "success" });
-    } else {
-      setCouponMsg({ text: "Invalid promo code. Try SAGAR20 or WELCOME50.", type: "error" });
-    }
-  };
-
-  const handleRemoveCoupon = () => {
-    setCouponDiscount(0);
-    setAppliedCouponCode(null);
-    setCouponInput("");
-    setCouponMsg({ text: "Coupon removed.", type: "" });
-  };
-
   const totalItems = cart.reduce((count, item) => count + item.quantity, 0);
   const subtotal = cart.reduce(
     (sum, item) => sum + item.menuItem.price * item.quantity,
@@ -194,13 +139,7 @@ export default function CartOverlay({
   );
   const gst = Math.round(subtotal * 0.05); // 5% GST
   const packagingCharge = orderType === "dine-in" ? 0 : 25; // Delivery or takeaway packaging
-  
-  const discountAmount = couponDiscount + loyaltyPointsDiscount;
-  let computedGrandTotal = subtotal + gst + packagingCharge - discountAmount;
-  if (computedGrandTotal < 0) computedGrandTotal = 0;
-  
-  const walletAmountUsed = useWalletPayment ? Math.min(computedGrandTotal, walletBalance) : 0;
-  const grandTotal = computedGrandTotal - walletAmountUsed;
+  const grandTotal = subtotal + gst + packagingCharge;
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -262,12 +201,11 @@ export default function CartOverlay({
         subtotal: subtotal,
         gst: gst,
         packagingCharge: packagingCharge,
-        discountAmount: discountAmount,
-        appliedCoupon: appliedCouponCode || undefined,
+        discountAmount: 0,
         grandTotal: grandTotal,
         orderStatus: "New Order" as const,
-        paymentStatus: useWalletPayment || paymentMethod === "Sagar Wallet" ? ("Paid" as const) : ("Pending" as const),
-        paymentMethod: useWalletPayment ? "Sagar Wallet" : paymentMethod,
+        paymentStatus: "Pending" as const,
+        paymentMethod: "Cash on Delivery", // Store payment method explicitly
         totalAmount: grandTotal,
       };
 
@@ -456,7 +394,7 @@ export default function CartOverlay({
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {pastOrders.slice(0, 5).map((order, idx) => {
+                      {pastOrders.slice(0, 5).map((order) => {
                         const formattedDate = new Date(order.createdAt).toLocaleDateString("en-IN", {
                           day: "numeric",
                           month: "short",
@@ -470,7 +408,7 @@ export default function CartOverlay({
                           "bg-amber-50 text-amber-700 border-amber-200";
 
                         return (
-                          <div key={`${order.id}-${order.createdAt || idx}`} className="bg-white border border-stone-200 p-4 rounded-2xl space-y-3 shadow-xs hover:border-stone-300 transition-all">
+                          <div key={order.id} className="bg-white border border-stone-200 p-4 rounded-2xl space-y-3 shadow-xs hover:border-stone-300 transition-all">
                             <div className="flex items-center justify-between">
                               <div>
                                 <span className="text-[11px] font-mono font-bold text-stone-900">{order.id}</span>
@@ -912,159 +850,6 @@ export default function CartOverlay({
                     </div>
                   </div>
 
-                  {/* Advanced Billing Engine: Coupons, Loyalty, Wallet & Split Bills */}
-                  <div className="border-t border-stone-200 bg-white p-4 space-y-3 font-sans text-xs">
-                    {/* Coupons & Promo Codes */}
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-stone-400 font-mono tracking-wider block uppercase">
-                        PROMO COUPONS & DISCOUNTS
-                      </span>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="ENTER CODE (e.g., SAGAR20, WELCOME50)"
-                          value={couponInput}
-                          onChange={(e) => setCouponInput(e.target.value)}
-                          disabled={!!appliedCouponCode}
-                          className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#d4af37] disabled:opacity-60 disabled:cursor-not-allowed uppercase text-xs"
-                        />
-                        {appliedCouponCode ? (
-                          <button
-                            type="button"
-                            onClick={handleRemoveCoupon}
-                            className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg border border-red-200 font-bold tracking-wider transition-all cursor-pointer"
-                          >
-                            REMOVE
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handleApplyCoupon}
-                            className="bg-stone-900 hover:bg-[#c67c4e] text-white px-3 py-1.5 rounded-lg font-bold tracking-wider transition-all cursor-pointer"
-                          >
-                            APPLY
-                          </button>
-                        )}
-                      </div>
-                      {couponMsg.text && (
-                        <p className={`text-[10px] font-medium ${couponMsg.type === "success" ? "text-emerald-600" : "text-red-500"}`}>
-                          {couponMsg.text}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Loyalty Points Redemption & Sagar Wallet */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      {/* Loyalty Points */}
-                      <button
-                        type="button"
-                        onClick={() => setUseLoyaltyPoints(!useLoyaltyPoints)}
-                        className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                          useLoyaltyPoints 
-                            ? "bg-amber-50/60 border-[#d4af37]/60 text-amber-900" 
-                            : "bg-stone-50/60 border-stone-200 text-stone-600 hover:bg-stone-50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                          <span className="font-bold text-[10.5px]">Loyalty Points</span>
-                        </div>
-                        <span className="text-[9.5px] mt-1 text-stone-500">
-                          {useLoyaltyPoints ? `Redeemed: ₹${loyaltyPointsDiscount}` : `Balance: ${loyaltyPointsAvailable} pts`}
-                        </span>
-                      </button>
-
-                      {/* Sagar Wallet */}
-                      <button
-                        type="button"
-                        onClick={() => setUseWalletPayment(!useWalletPayment)}
-                        className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                          useWalletPayment 
-                            ? "bg-stone-900 border-stone-850 text-white" 
-                            : "bg-stone-50/60 border-stone-200 text-stone-600 hover:bg-stone-50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-1">
-                          <Wallet className="w-3.5 h-3.5 text-emerald-500" />
-                          <span className="font-bold text-[10.5px]">Sagar Wallet</span>
-                        </div>
-                        <span className="text-[9.5px] mt-1 text-stone-400">
-                          {useWalletPayment ? `Deducted: ₹${walletAmountUsed}` : `Balance: ₹${walletBalance}`}
-                        </span>
-                      </button>
-                    </div>
-
-                    {/* Split Bills Toggle */}
-                    <div className="border-t border-stone-150 pt-2 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <button
-                          type="button"
-                          onClick={() => setIsSplitOpen(!isSplitOpen)}
-                          className="text-stone-600 hover:text-stone-900 flex items-center gap-1.5 font-bold tracking-wide text-[10.5px] focus:outline-none cursor-pointer"
-                        >
-                          <Users className="w-3.5 h-3.5 text-stone-500" />
-                          {isSplitOpen ? "Hide Bill Splitter" : "Split This Bill?"}
-                        </button>
-                        {isSplitOpen && (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              disabled={splitBillCount <= 1}
-                              onClick={() => setSplitBillCount(c => Math.max(1, c - 1))}
-                              className="w-5 h-5 flex items-center justify-center bg-stone-100 hover:bg-stone-200 rounded text-stone-700 disabled:opacity-50 font-bold"
-                            >
-                              -
-                            </button>
-                            <span className="font-mono font-bold text-stone-800 text-xs w-4 text-center">
-                              {splitBillCount}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setSplitBillCount(c => c + 1)}
-                              className="w-5 h-5 flex items-center justify-center bg-stone-100 hover:bg-stone-200 rounded text-stone-700 font-bold"
-                            >
-                              +
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {isSplitOpen && splitBillCount > 1 && (
-                        <div className="bg-stone-50/70 border border-stone-200/60 p-2 rounded-lg flex justify-between items-center text-[11px] text-stone-650 animate-fadeIn">
-                          <span>Split share ({splitBillCount} people)</span>
-                          <span className="font-mono font-bold text-stone-900">
-                            ₹{(grandTotal / splitBillCount).toFixed(2)} / head
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Alternate Payment Method (if not paying full by Wallet) */}
-                    {!useWalletPayment && (
-                      <div className="pt-1.5 border-t border-stone-100 flex items-center justify-between">
-                        <span className="text-[10px] text-stone-400 font-mono tracking-wider block uppercase">
-                          PAYMENT OPTION
-                        </span>
-                        <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200">
-                          {(["Cash", "Card"] as const).map((method) => (
-                            <button
-                              key={method}
-                              type="button"
-                              onClick={() => setPaymentMethod(method)}
-                              className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all duration-150 cursor-pointer ${
-                                paymentMethod === method
-                                  ? "bg-white text-stone-900 shadow-sm border border-stone-200/50"
-                                  : "text-stone-500 hover:text-stone-700"
-                              }`}
-                            >
-                              {method}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                   {/* Pricing Total Summary Box in Footer of Cart */}
                   <div className="bg-stone-50 border-t border-stone-150 p-5 space-y-3 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] font-sans">
                     <div className="space-y-1.5 text-xs">
@@ -1086,31 +871,9 @@ export default function CartOverlay({
                           <span className="font-mono">₹{packagingCharge}</span>
                         </div>
                       )}
-                      
-                      {couponDiscount > 0 && (
-                        <div className="flex justify-between text-emerald-600 font-medium">
-                          <span>Promo Coupon Discount ({appliedCouponCode})</span>
-                          <span className="font-mono">-₹{couponDiscount}</span>
-                        </div>
-                      )}
-
-                      {loyaltyPointsDiscount > 0 && (
-                        <div className="flex justify-between text-amber-700 font-medium">
-                          <span>Loyalty Points Redeemed</span>
-                          <span className="font-mono">-₹{loyaltyPointsDiscount}</span>
-                        </div>
-                      )}
-
-                      {walletAmountUsed > 0 && (
-                        <div className="flex justify-between text-stone-700 font-medium">
-                          <span>Paid with Sagar Wallet</span>
-                          <span className="font-mono">-₹{walletAmountUsed}</span>
-                        </div>
-                      )}
-
                       <div className="flex justify-between text-stone-900 text-base font-bold pt-2 border-t border-stone-200">
                         <span className="font-serif italic font-medium">
-                          {walletAmountUsed > 0 && grandTotal === 0 ? "Total Paid" : "Grand Total"}
+                          Grand Total
                         </span>
                         <span className="font-mono text-[#d4af37]">
                           ₹{grandTotal}

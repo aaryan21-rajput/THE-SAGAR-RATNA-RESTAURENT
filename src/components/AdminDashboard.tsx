@@ -3,18 +3,15 @@ import {
   BarChart3, ShoppingCart, Utensils, Users, Landmark, Ticket, 
   MessageSquare, Package, ShieldCheck, Settings, LogOut, Check, X,
   Search, Plus, Filter, Download, Info, Trash2, Edit2, AlertCircle, 
-  Activity, Star, Sparkles, Volume2, VolumeX, Printer, CheckCircle, QrCode,
-  LifeBuoy, Clock
+  Activity, Star, Sparkles, Volume2, VolumeX, Printer, CheckCircle, QrCode
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } from "../lib/db";
 import { MenuItem, RestaurantTable } from "../types";
-import { PhysicalThermalPrinter } from "../lib/printerService";
 import KitchenDashboard from "./KitchenDashboard";
 import LiveKotMonitor from "./LiveKotMonitor";
+import VirtualPrinterCenter from "./VirtualPrinterCenter";
 import SupabaseDiagnostics from "../pages/admin/SupabaseDiagnostics";
-import SupportFeedbackCenter from "./SupportFeedbackCenter";
-import StaffAttendanceManager from "./StaffAttendanceManager";
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -22,7 +19,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "logs" | "settings" | "kitchen" | "tables" | "supabase" | "support" | "attendance"
+    "analytics" | "orders" | "menu" | "customers" | "revenue" | "coupons" | "reviews" | "logs" | "settings" | "kitchen" | "tables" | "supabase" | "virtual-printer"
   >("analytics");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -49,7 +46,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [activeAlerts, setActiveAlerts] = useState<Order[]>([]);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
   const [showBillPrint, setShowBillPrint] = useState<Order | null>(null);
-  const [selectedPaperWidth, setSelectedPaperWidth] = useState<"58mm" | "80mm">("80mm");
 
   // Inactivity tracking: 10 minutes auto-logout
   const [secondsRemaining, setSecondsRemaining] = useState(600); // 10 minutes
@@ -73,15 +69,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showRestockModal, setShowRestockModal] = useState(false);
   const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null);
   const [restockAmount, setRestockAmount] = useState<number>(10);
-
-  // Administrative credentials renewal states
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [credError, setCredError] = useState<string | null>(null);
-  const [credSuccess, setCredSuccess] = useState<string | null>(null);
-  const [isRenewing, setIsRenewing] = useState(false);
 
   // Load state from server/localStorage on boot and poll periodically
   useEffect(() => {
@@ -325,15 +312,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     return inventory.filter(i => i.stock <= i.minAlertLevel);
   }, [inventory]);
 
-  // EXPORT UTILS WITH FORMULA INJECTION PROTECTION
-  const escapeCSVField = (val: any): string => {
-    const str = String(val ?? "");
-    if (str.startsWith("=") || str.startsWith("+") || str.startsWith("-") || str.startsWith("@")) {
-      return `'${str}`;
-    }
-    return str;
-  };
-
+  // EXPORT UTILS
   const handleExportCSV = (filename: string, text: string) => {
     const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -350,7 +329,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const exportCustomersCSV = () => {
     let csv = "Customer Name,Phone Number,Email,Total Spending,Orders Placed,Last Order Date\n";
     customerAnalytics.forEach(c => {
-      csv += `"${escapeCSVField(c.name)}","${escapeCSVField(c.phone)}","${escapeCSVField(c.email)}",₹${c.totalSpend},${c.count},"${new Date(c.lastDate).toLocaleDateString()}"\n`;
+      csv += `"${c.name}","${c.phone}","${c.email}",₹${c.totalSpend},${c.count},"${new Date(c.lastDate).toLocaleDateString()}"\n`;
     });
     handleExportCSV("SagarRatna_Customers", csv);
   };
@@ -358,7 +337,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const exportRevenueCSV = () => {
     let csv = "Order ID,Customer,Amount,Status,Date & Time,Type,Coupon,GST\n";
     orders.forEach(o => {
-      csv += `${escapeCSVField(o.id)},"${escapeCSVField(o.customerName)}",₹${o.grandTotal},${escapeCSVField(o.orderStatus)},"${new Date(o.createdAt).toLocaleString()}",${escapeCSVField(o.orderType)},"${escapeCSVField(o.appliedCoupon || "")}",₹${o.gst}\n`;
+      csv += `${o.id},"${o.customerName}",₹${o.grandTotal},${o.orderStatus},"${new Date(o.createdAt).toLocaleString()}",${o.orderType},"${o.appliedCoupon || ""}",₹${o.gst}\n`;
     });
     handleExportCSV("SagarRatna_RevenueReport", csv);
   };
@@ -571,42 +550,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   };
 
-  const handleRenewCredentials = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCredError(null);
-    setCredSuccess(null);
-
-    if (!currentPassword || !newEmail || !newPassword || !confirmNewPassword) {
-      setCredError("All fields are required to complete security validation.");
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      setCredError("New password and confirmation password do not match.");
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setCredError("New password key must be at least 6 characters in length.");
-      return;
-    }
-
-    setIsRenewing(true);
-    try {
-      const res = await LocalDB.apiRenewCredentials(currentPassword, newEmail, newPassword);
-      setCredSuccess(res.message || "Administrative owner credentials renewed successfully!");
-      setCurrentPassword("");
-      setNewEmail("");
-      setNewPassword("");
-      setConfirmNewPassword("");
-      await refreshAllData();
-    } catch (err: any) {
-      setCredError(err.message || "Failed to renew credentials. Please check your current password key.");
-    } finally {
-      setIsRenewing(false);
-    }
-  };
-
   // 7. Table QR Management Handlers
   const handleAddTable = (e: React.FormEvent) => {
     e.preventDefault();
@@ -773,7 +716,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* Diagnostic controls and countdown */}
         <div className="flex items-center gap-2 md:gap-4 text-xs font-mono">
-          <div className="hidden">
+          <div className="hidden md:flex items-center gap-2 text-stone-500 bg-stone-50 px-3 py-1.5 border border-stone-200 rounded-lg">
             <Activity className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
             <span>DB Server: <span className="text-green-600 font-bold">Live</span></span>
           </div>
@@ -788,7 +731,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </button>
 
           {/* Timeout alarm */}
-          <div className="hidden">
+          <div className="text-stone-600 bg-stone-50 px-20 py-1.5 border border-stone-200 rounded-lg flex items-center gap-1.5 text-[10px] sm:text-xs">
             <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping" />
             <span>⏱️ <strong className="text-stone-900">{formatTimeRemaining(secondsRemaining)}</strong></span>
           </div>
@@ -822,16 +765,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <SidebarBtn icon={<Ticket />} label="Promo Coupons" active={activeTab === "coupons"} onClick={() => setActiveTab("coupons")} />
             <SidebarBtn icon={<MessageSquare />} label="Guest Reviews" active={activeTab === "reviews"} count={reviews.filter(r => !r.approved).length} onClick={() => setActiveTab("reviews")} />
             <SidebarBtn icon={<QrCode />} label="Table QR Codes" active={activeTab === "tables"} onClick={() => setActiveTab("tables")} />
-            <SidebarBtn icon={<Clock />} label="Staff & Attendance" active={activeTab === "attendance"} onClick={() => setActiveTab("attendance")} />
-
             
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">OPERATOR VIEWS & KOT</p>
             <SidebarBtn icon={<Utensils />} label="Kitchen Display (KDS)" active={activeTab === "kitchen"} onClick={() => setActiveTab("kitchen")} />
+            <SidebarBtn icon={<Printer />} label="Virtual Printer" active={activeTab === "virtual-printer"} onClick={() => setActiveTab("virtual-printer")} />
 
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">SECURITY & PARAMS</p>
             <SidebarBtn icon={<ShieldCheck />} label="Audit Log Ledger" active={activeTab === "logs"} onClick={() => setActiveTab("logs")} />
             <SidebarBtn icon={<Settings />} label="Portal Settings" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
-            <SidebarBtn icon={<LifeBuoy />} label="Support & Feedback" active={activeTab === "support"} onClick={() => setActiveTab("support")} />
             <SidebarBtn icon={<Activity />} label="Supabase Cloud Audit" active={activeTab === "supabase"} onClick={() => setActiveTab("supabase")} />
           </div>
 
@@ -858,11 +799,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 {activeTab === "reviews" && <MessageSquare className="w-4 h-4" />}
                 {activeTab === "logs" && <ShieldCheck className="w-4 h-4" />}
                 {activeTab === "settings" && <Settings className="w-4 h-4" />}
-                {activeTab === "support" && <LifeBuoy className="w-4 h-4" />}
                 {activeTab === "kitchen" && <Utensils className="w-4 h-4" />}
                 {activeTab === "tables" && <QrCode className="w-4 h-4" />}
                 {activeTab === "supabase" && <Activity className="w-4 h-4" />}
-                {activeTab === "attendance" && <Clock className="w-4 h-4" />}
+                {activeTab === "virtual-printer" && <Printer className="w-4 h-4" />}
               </span>
               <div>
                 <span className="text-[8px] text-stone-400 font-mono uppercase block leading-none">CURRENT BOARD</span>
@@ -876,13 +816,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   {activeTab === "reviews" && "Review Approvals"}
                   {activeTab === "logs" && "Audit Security Ledger"}
                   {activeTab === "settings" && "Portal Settings"}
-                  {activeTab === "support" && "Support & Feedback"}
                   {activeTab === "kitchen" && "Kitchen Tickets (KDS)"}
                   {activeTab === "tables" && "Table QR Codes Manager"}
                   {activeTab === "supabase" && "Supabase Connectivity Audit"}
-                  {activeTab === "attendance" && "Staff Attendance Manager"}
+                  {activeTab === "virtual-printer" && "Virtual KOT Printer Center"}
                 </span>
-
               </div>
             </div>
             
@@ -914,13 +852,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <MobileGridBtn id="reviews" label="Reviews" active={activeTab === "reviews"} count={reviews.filter(r => !r.approved).length} icon={<MessageSquare />} onClick={() => { setActiveTab("reviews"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="logs" label="Audit Logs" active={activeTab === "logs"} icon={<ShieldCheck />} onClick={() => { setActiveTab("logs"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="settings" label="Portal Config" active={activeTab === "settings"} icon={<Settings />} onClick={() => { setActiveTab("settings"); setIsMobileMenuOpen(false); }} />
-                  <MobileGridBtn id="support" label="Support Desk" active={activeTab === "support"} icon={<LifeBuoy />} onClick={() => { setActiveTab("support"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="kitchen" label="Kitchen KDS" active={activeTab === "kitchen"} icon={<Utensils />} onClick={() => { setActiveTab("kitchen"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="tables" label="Table QRs" active={activeTab === "tables"} icon={<QrCode />} onClick={() => { setActiveTab("tables"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="supabase" label="Supa Audit" active={activeTab === "supabase"} icon={<Activity />} onClick={() => { setActiveTab("supabase"); setIsMobileMenuOpen(false); }} />
-                  <MobileGridBtn id="attendance" label="Staff & Attendance" active={activeTab === "attendance"} icon={<Clock />} onClick={() => { setActiveTab("attendance"); setIsMobileMenuOpen(false); }} />
+                  <MobileGridBtn id="virtual-printer" label="Virt Printer" active={activeTab === "virtual-printer"} icon={<Printer />} onClick={() => { setActiveTab("virtual-printer"); setIsMobileMenuOpen(false); }} />
                 </div>
-
               </motion.div>
             )}
           </AnimatePresence>
@@ -1135,8 +1071,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             </td>
                           </tr>
                         ) : (
-                          filteredOrders.map((o, idx) => (
-                            <tr key={`${o.id}-${o.createdAt || idx}`} className="hover:bg-stone-50/40 transition-colors">
+                          filteredOrders.map((o) => (
+                            <tr key={o.id} className="hover:bg-stone-50/40 transition-colors">
                               <td className="p-3.5 font-bold text-stone-900 text-xs font-mono">{o.id}</td>
                               <td className="p-3.5 space-y-0.5">
                                 <div className="font-semibold text-stone-900 font-sans">{o.customerName}</div>
@@ -1731,17 +1667,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-sans font-bold text-[#C67C4E] uppercase tracking-widest block">RESTAURANT GSTIN / GST NUMBER</label>
-                      <input
-                        type="text"
-                        value={settings.gstNumber || ""}
-                        onChange={(e) => setSettings({ ...settings, gstNumber: e.target.value })}
-                        placeholder="e.g. 07AAAAA1111A1Z1"
-                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-sans"
-                      />
-                    </div>
-
                     <div className="space-y-1 sm:col-span-2">
                       <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">GEOLOCATION POSTAL ADDRESS</label>
                       <textarea
@@ -1752,27 +1677,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       />
                     </div>
 
-                    <div className="space-y-1 sm:col-span-2 pt-2 border-t border-stone-100">
-                      <label className="text-[10px] font-sans font-bold text-[#C67C4E] uppercase tracking-widest block mb-2">AUTOMATIC PRINTER CONFIGURATION</label>
-                      <div className="flex items-center justify-between p-4 bg-[#FAF6F0]/40 border border-stone-200 rounded-xl gap-4">
-                        <div className="space-y-1 text-left">
-                          <span className="text-xs font-bold text-stone-900 block font-sans">Automatic KOT Printing on Order Received</span>
-                          <p className="text-[11px] text-stone-500 font-sans leading-relaxed">
-                            Automatically routes new guest orders directly to the kitchen (KOT) queue on Cutie Printer emulator. If disabled, orders are saved to the dashboard without automatically queueing physical prints.
-                          </p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
-                          <input
-                            type="checkbox"
-                            checked={settings.autoPrintKOT !== false}
-                            onChange={(e) => setSettings({ ...settings, autoPrintKOT: e.target.checked })}
-                            className="sr-only peer"
-                          />
-                          <div className="w-11 h-6 bg-stone-200 rounded-full peer peer-checked:bg-[#C67C4E] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-                        </label>
-                      </div>
-                    </div>
-
                   </div>
 
                   <button
@@ -1780,84 +1684,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     className="px-5 py-3 bg-[#e2935c] hover:bg-[#C67C4E] text-white font-bold text-xs tracking-wider uppercase rounded-xl transition-colors cursor-pointer focus:outline-none shadow-sm"
                   >
                     AUTHORIZE SAVE CONFIG
-                  </button>
-                </form>
-
-                {/* Renew Credentials Security Panel */}
-                <div className="flex flex-col gap-1 pt-6 border-t border-stone-200">
-                  <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider text-left">Renew owner credentials</h2>
-                  <p className="text-xs text-stone-500 font-sans">Modify administrative email address and secure access passkey.</p>
-                </div>
-
-                <form onSubmit={handleRenewCredentials} className="bg-white border border-stone-200 rounded-2xl p-6 space-y-5 shadow-sm">
-                  {credError && (
-                    <div className="p-4 bg-red-50 border border-red-150 text-red-800 rounded-xl text-xs flex items-center gap-2">
-                      <span className="font-semibold">⚠️ Error:</span> {credError}
-                    </div>
-                  )}
-
-                  {credSuccess && (
-                    <div className="p-4 bg-green-50 border border-green-150 text-green-800 rounded-xl text-xs flex items-center gap-2">
-                      <span className="font-semibold">✓ Success:</span> {credSuccess}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">CURRENT PASSWORD KEY</label>
-                      <input
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">NEW OWNER EMAIL ADDRESS</label>
-                      <input
-                        type="email"
-                        required
-                        placeholder="newowner@example.com"
-                        value={newEmail}
-                        onChange={(e) => setNewEmail(e.target.value)}
-                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-sans"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">NEW SECURE PASSKEY</label>
-                      <input
-                        type="password"
-                        required
-                        placeholder="Min 6 characters"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">CONFIRM NEW SECURE PASSKEY</label>
-                      <input
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        value={confirmNewPassword}
-                        onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isRenewing}
-                    className="px-5 py-3 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-400 text-white font-bold text-xs tracking-wider uppercase rounded-xl transition-colors cursor-pointer focus:outline-none shadow-sm animate-none"
-                  >
-                    {isRenewing ? "RENEWING CREDENTIALS..." : "RENEW SECURITY CREDENTIALS"}
                   </button>
                 </form>
 
@@ -2183,20 +2009,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </motion.div>
             )}
 
-            {/* TAB CONTENT: SUPPORT & FEEDBACK */}
-            {activeTab === "support" && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full">
-                <SupportFeedbackCenter settings={settings} />
+            {/* TAB CONTENT: VIRTUAL PRINTER */}
+            {activeTab === "virtual-printer" && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
+                <VirtualPrinterCenter />
               </motion.div>
             )}
-
-            {/* TAB CONTENT: STAFF & ATTENDANCE */}
-            {activeTab === "attendance" && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full">
-                <StaffAttendanceManager />
-              </motion.div>
-            )}
-
 
           </div>
         </main>
@@ -2383,40 +2201,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 </div>
               </div>
 
-              {/* Paper width selector */}
-              <div className="mt-4 p-2.5 bg-stone-50 rounded-xl border border-stone-200/60 no-print font-sans">
-                <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2 text-center">Select Thermal Paper Size</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPaperWidth("80mm")}
-                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      selectedPaperWidth === "80mm"
-                        ? "bg-[#C67C4E] text-white shadow-xs"
-                        : "bg-white text-stone-600 hover:bg-stone-100 border border-stone-200"
-                    }`}
-                  >
-                    80mm (Standard)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPaperWidth("58mm")}
-                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      selectedPaperWidth === "58mm"
-                        ? "bg-[#C67C4E] text-white shadow-xs"
-                        : "bg-white text-stone-600 hover:bg-stone-100 border border-stone-200"
-                    }`}
-                  >
-                    58mm (Compact)
-                  </button>
-                </div>
-              </div>
-
               <div className="mt-6 flex gap-2 no-print font-sans">
                 <button
                   onClick={() => {
-                    PhysicalThermalPrinter.printCustomerBill(showBillPrint, settings, selectedPaperWidth);
-                    LocalDB.addAuditLog("Receipt Printed", `Bill slip printed for Order: ${showBillPrint.id} (${selectedPaperWidth})`, "Admin");
+                    window.print();
+                    LocalDB.addAuditLog("Receipt Printed", `Bill slip printed for Order: ${showBillPrint.id}`, "Admin");
                   }}
                   className="w-1/2 py-2.5 bg-stone-900 text-white hover:bg-stone-850 rounded-lg text-xs font-bold tracking-wider cursor-pointer"
                 >

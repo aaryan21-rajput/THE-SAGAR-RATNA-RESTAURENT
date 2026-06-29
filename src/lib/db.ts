@@ -1,4 +1,4 @@
-import { MenuItem, Review, KOT, KOTStatus, OrderItem, RestaurantTable, PrinterEmulatorLog, SupportTicket, TicketReply, Employee, Shift, AttendanceRecord, LeaveRequest, BiometricDevice, BiometricRawLog } from "../types";
+import { MenuItem, Review, KOT, KOTStatus, OrderItem, RestaurantTable, PrinterEmulatorLog } from "../types";
 import { menuItems as defaultMenuItems, reviews as defaultReviews } from "../data";
 import { createClient } from "@supabase/supabase-js";
 
@@ -40,7 +40,6 @@ export interface Order {
   createdAt: string; // ISO string or date
   paymentMethod?: string;
   kotNumber?: string;
-  branch?: string;
 }
 
 export interface Coupon {
@@ -83,8 +82,6 @@ export interface RestaurantSettings {
   instagramUrl: string;
   twitterUrl: string;
   googleMapsUrl: string;
-  gstNumber?: string;
-  autoPrintKOT?: boolean;
 }
 
 // Generate premium mock orders spanning the last 30 days
@@ -217,157 +214,13 @@ const defaultSettings: RestaurantSettings = {
   facebookUrl: "https://facebook.com",
   instagramUrl: "https://instagram.com",
   twitterUrl: "https://twitter.com",
-  googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3501.0772718136367!2d77.1082!3d28.6322!2m3!1f0!2f0!3f0!3m2!1i1248!2i786!4m2!3m1!1s0x0%3A0x0!2zMjgmdW5pcXVl!5e0!3m2!1sen!2sin!4v1680000000000!5m2!1sen!2sin",
-  gstNumber: "07AAAAA1111A1Z1",
-  autoPrintKOT: true
+  googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3501.0772718136367!2d77.1082!3d28.6322!2m3!1f0!2f0!3f0!3m2!1i1248!2i786!4m2!3m1!1s0x0%3A0x0!2zMjgmdW5pcXVl!5e0!3m2!1sen!2sin!4v1680000000000!5m2!1sen!2sin"
 };
 
 // Initial logs
 const defaultAuditLogs: AuditLog[] = [
   { id: "log-1", timestamp: new Date().toISOString(), user: "Admin (owner)", action: "System Initialized", details: "Local database initialized clean. Ready for real orders.", ipAddress: "127.0.0.1" }
 ];
-
-const defaultSupportTickets: SupportTicket[] = [
-  {
-    id: "TKT-1001",
-    subject: "Need integration with Swiggy",
-    category: "Feature Request",
-    priority: "Medium",
-    description: "We are currently receiving many delivery orders from Swiggy, and manual entry to the POS system is causing delays. Direct API integration would save our staff a lot of time.",
-    status: "In Progress",
-    createdAt: "2026-06-23T10:00:00Z",
-    restaurantName: "Sagar Ratna",
-    replies: [
-      {
-        id: "rep-1",
-        author: "Owner",
-        message: "Hi support team, is Swiggy integration on the roadmap? We get a lot of deliveries from Swiggy.",
-        createdAt: "2026-06-23T10:00:00Z"
-      },
-      {
-        id: "rep-2",
-        author: "Support Agent",
-        message: "Hello! Yes, Swiggy and Zomato direct sync is currently in beta testing. We expect to launch this in the next update around July 15.",
-        createdAt: "2026-06-24T09:00:00Z"
-      }
-    ],
-    internalNotes: "Beta testing group 4",
-    unreadUpdate: true
-  },
-  {
-    id: "TKT-1002",
-    subject: "Thermal printer not pairing via Bluetooth",
-    category: "Technical Support",
-    priority: "High",
-    description: "Our physical 3-inch Bluetooth thermal printer refuses to pair with the admin tablet. It is visible in Bluetooth settings but fails during pairing handshake.",
-    status: "Open",
-    createdAt: "2026-06-24T18:30:00Z",
-    restaurantName: "Sagar Ratna",
-    replies: [
-      {
-        id: "rep-3",
-        author: "Owner",
-        message: "The virtual printer logs are fine, but our physical 3-inch thermal printer refuses to pair. Any suggestions?",
-        createdAt: "2026-06-24T18:30:00Z"
-      }
-    ]
-  },
-  {
-    id: "TKT-1003",
-    subject: "CGST and SGST bifurcation works beautifully",
-    category: "General Feedback",
-    priority: "Low",
-    description: "The latest update splitting GST into SGST (2.5%) and CGST (2.5%) was perfectly applied! Thank you for the quick turn-around on this compliance requirement.",
-    status: "Resolved",
-    createdAt: "2026-06-25T01:00:00Z",
-    restaurantName: "Sagar Ratna",
-    replies: [
-      {
-        id: "rep-4",
-        author: "Owner",
-        message: "The latest update splitting GST into SGST (2.5%) and CGST (2.5%) was perfectly applied! Thank you for the quick turn-around.",
-        createdAt: "2026-06-25T01:00:00Z"
-      },
-      {
-        id: "rep-5",
-        author: "Support Agent",
-        message: "You're very welcome! Glad we could help resolve this compliance requirement for you. Let us know if you need any other modifications.",
-        createdAt: "2026-06-25T01:15:00Z"
-      }
-    ]
-  },
-  {
-    id: "TKT-1004",
-    subject: "Payment settlement delay",
-    category: "Billing",
-    priority: "Urgent",
-    description: "Our weekly payout was scheduled for yesterday (Tuesday) but has not yet reflected in our bank account. Usually it settles by Tuesday noon.",
-    status: "Resolved",
-    createdAt: "2026-06-23T11:00:00Z",
-    restaurantName: "Bikanervala",
-    replies: [
-      {
-        id: "rep-6",
-        author: "Owner",
-        message: "Our weekly payout was scheduled for yesterday but hasn't reflected yet.",
-        createdAt: "2026-06-23T11:00:00Z"
-      },
-      {
-        id: "rep-7",
-        author: "Support Agent",
-        message: "We checked and the payout was successfully processed on our end. It might take up to 24 hours to reflect depending on your bank's NEFT settlement cycles.",
-        createdAt: "2026-06-23T14:00:00Z"
-      }
-    ],
-    internalNotes: "Gateway status was delayed due to high bank network latency."
-  }
-];
-
-const defaultShifts: Shift[] = [
-  { id: "S-1", name: "Morning Shift", startTime: "09:00", endTime: "17:00", graceMinutes: 15, breakMinutes: 30 },
-  { id: "S-2", name: "Evening Shift", startTime: "17:00", endTime: "01:00", graceMinutes: 15, breakMinutes: 30 },
-  { id: "S-3", name: "Night Shift", startTime: "21:00", endTime: "05:00", graceMinutes: 15, breakMinutes: 30 }
-];
-
-const defaultEmployees: Employee[] = [
-  { id: "EMP-101", name: "Rajeev Sharma", role: "Chef", phone: "9876543210", email: "rajeev.sharma@example.com", branch: "Sagar Ratna - CP", hourlyRate: 150, overtimeMultiplier: 1.5, biometricId: "B-101", status: "Active", joinedDate: "2024-01-15", shiftId: "S-1" },
-  { id: "EMP-102", name: "Priya Patel", role: "Server", phone: "9812345678", email: "priya.patel@example.com", branch: "Sagar Ratna - CP", hourlyRate: 100, overtimeMultiplier: 1.5, biometricId: "B-102", status: "Active", joinedDate: "2024-03-22", shiftId: "S-1" },
-  { id: "EMP-103", name: "Amit Verma", role: "Manager", phone: "9988776655", email: "amit.verma@example.com", branch: "Sagar Ratna - CP", hourlyRate: 250, overtimeMultiplier: 1.5, biometricId: "B-103", status: "Active", joinedDate: "2023-06-10", shiftId: "S-1" },
-  { id: "EMP-104", name: "Sunita Devi", role: "Cleaner", phone: "9555666777", email: "sunita.devi@example.com", branch: "Sagar Ratna - CP", hourlyRate: 80, overtimeMultiplier: 1.5, biometricId: "B-104", status: "Active", joinedDate: "2024-02-01", shiftId: "S-2" },
-  { id: "EMP-201", name: "Sanjay Kumar", role: "Cashier", phone: "9123456789", email: "sanjay.kumar@example.com", branch: "Sagar Ratna - Noida", hourlyRate: 120, overtimeMultiplier: 1.5, biometricId: "B-201", status: "Active", joinedDate: "2024-05-11", shiftId: "S-1" },
-  { id: "EMP-202", name: "Vikram Singh", role: "Security", phone: "9444333222", email: "vikram.singh@example.com", branch: "Sagar Ratna - Noida", hourlyRate: 90, overtimeMultiplier: 1.5, biometricId: "B-202", status: "Active", joinedDate: "2023-11-20", shiftId: "S-3" }
-];
-
-const defaultAttendance: AttendanceRecord[] = [
-  // CP Branch - June 24, 2026
-  { id: "ATT-1001", employeeId: "EMP-101", date: "2026-06-24", shiftId: "S-1", checkIn: "2026-06-24T08:58:00Z", checkOut: "2026-06-24T18:00:00Z", status: "Present", lateMinutes: 0, overtimeMinutes: 60, totalWorkingMinutes: 512, syncSource: "ZKTeco Terminal" },
-  { id: "ATT-1002", employeeId: "EMP-102", date: "2026-06-24", shiftId: "S-1", checkIn: "2026-06-24T09:05:00Z", checkOut: "2026-06-24T17:01:00Z", status: "Present", lateMinutes: 5, overtimeMinutes: 0, totalWorkingMinutes: 446, syncSource: "eSSL Terminal" },
-  { id: "ATT-1003", employeeId: "EMP-103", date: "2026-06-24", shiftId: "S-1", checkIn: "2026-06-24T09:22:00Z", checkOut: "2026-06-24T17:00:00Z", status: "Late", lateMinutes: 22, overtimeMinutes: 0, totalWorkingMinutes: 428, syncSource: "eSSL Terminal" },
-  { id: "ATT-1004", employeeId: "EMP-104", date: "2026-06-24", shiftId: "S-2", checkIn: "2026-06-24T17:02:00Z", checkOut: "2026-06-25T01:05:00Z", status: "Present", lateMinutes: 2, overtimeMinutes: 5, totalWorkingMinutes: 478, syncSource: "ZKTeco Terminal" },
-  
-  // CP Branch - June 25, 2026
-  { id: "ATT-1005", employeeId: "EMP-101", date: "2026-06-25", shiftId: "S-1", checkIn: "2026-06-25T08:55:00Z", checkOut: null, status: "Present", lateMinutes: 0, overtimeMinutes: 0, totalWorkingMinutes: 0, syncSource: "ZKTeco Terminal" },
-  { id: "ATT-1006", employeeId: "EMP-102", date: "2026-06-25", shiftId: "S-1", checkIn: "2026-06-25T09:25:00Z", checkOut: null, status: "Late", lateMinutes: 25, overtimeMinutes: 0, totalWorkingMinutes: 0, syncSource: "eSSL Terminal" },
-  { id: "ATT-1007", employeeId: "EMP-103", date: "2026-06-25", shiftId: "S-1", checkIn: "2026-06-25T08:50:00Z", checkOut: null, status: "Present", lateMinutes: 0, overtimeMinutes: 0, totalWorkingMinutes: 0, syncSource: "eSSL Terminal" },
-];
-
-const defaultLeaves: LeaveRequest[] = [
-  { id: "LR-1001", employeeId: "EMP-102", leaveType: "Sick Leave", startDate: "2026-06-20", endDate: "2026-06-21", reason: "Severe dental surgery recovery", status: "Approved", createdAt: "2026-06-19T14:20:00Z" },
-  { id: "LR-1002", employeeId: "EMP-104", leaveType: "Casual Leave", startDate: "2026-06-26", endDate: "2026-06-27", reason: "Family wedding celebration", status: "Pending", createdAt: "2026-06-24T10:00:00Z" }
-];
-
-const defaultDevices: BiometricDevice[] = [
-  { id: "DEV-1", name: "ZKTeco CP Kitchen Terminal", model: "ZKTeco K40", type: "Fingerprint", ipAddress: "192.168.1.150", port: 4370, branch: "Sagar Ratna - CP", status: "Online", lastSyncTime: "2026-06-25T01:30:00Z" },
-  { id: "DEV-2", name: "eSSL CP Front Desk Face Reader", model: "eSSL Identix K30", type: "Facial Recognition", ipAddress: "192.168.1.151", port: 5005, branch: "Sagar Ratna - CP", status: "Online", lastSyncTime: "2026-06-25T01:35:00Z" },
-  { id: "DEV-3", name: "ZKTeco Noida Gate terminal", model: "ZKTeco FacePass 7", type: "Facial Recognition", ipAddress: "192.168.2.110", port: 4370, branch: "Sagar Ratna - Noida", status: "Online", lastSyncTime: "2026-06-24T23:50:00Z" }
-];
-
-const defaultBiometricLogs: BiometricRawLog[] = [
-  { id: "LOG-B101", deviceId: "DEV-1", biometricId: "B-101", timestamp: "2026-06-25T08:55:00Z", verifyType: "Fingerprint" },
-  { id: "LOG-B102", deviceId: "DEV-2", biometricId: "B-102", timestamp: "2026-06-25T09:25:00Z", verifyType: "Face" },
-  { id: "LOG-B103", deviceId: "DEV-2", biometricId: "B-103", timestamp: "2026-06-25T08:50:00Z", verifyType: "Face" },
-];
-
 
 // Self-executing migration to clean up all old simulated/mock transactions and prefilled data
 if (typeof window !== "undefined") {
@@ -389,140 +242,6 @@ if (typeof window !== "undefined") {
 
 // Database state managers with both offline localStorage caching and full-stack Express API integration
 export class LocalDB {
-  private static lastOrderSignatures = new Map<string, number>();
-
-  static getNextKOTNumber(): string {
-    const kots = this.getKOTs();
-    let maxNum = 0;
-    for (const k of kots) {
-      if (k.id && k.id.startsWith("KOT-")) {
-        const num = parseInt(k.id.substring(4), 10);
-        if (!isNaN(num) && num > maxNum) {
-          maxNum = num;
-        }
-      }
-    }
-    const nextNum = maxNum + 1;
-    return `KOT-${String(nextNum).padStart(4, "0")}`;
-  }
-
-  // Recipe details mapped to culinary recipes to support automated ingredient deductions
-  static getRecipeForMenuItem(menuItemId: string, name: string): { ingredientId: string; quantity: number }[] {
-    const nameLower = name.toLowerCase();
-    const recipe: { ingredientId: string; quantity: number }[] = [];
-
-    // 1. Dosa recipes
-    if (menuItemId.includes("dosa") || nameLower.includes("dosa")) {
-      recipe.push({ ingredientId: "i3", quantity: 0.2 }); // 0.2L Dosa Batter
-      recipe.push({ ingredientId: "i7", quantity: 0.02 }); // 0.02kg Cow Ghee
-      if (nameLower.includes("masala") || nameLower.includes("potato")) {
-        recipe.push({ ingredientId: "i4", quantity: 0.1 }); // 0.1kg Potatoes
-      }
-    }
-    // 2. Paneer recipes
-    else if (nameLower.includes("paneer")) {
-      recipe.push({ ingredientId: "i2", quantity: 0.15 }); // 0.15kg Paneer
-      recipe.push({ ingredientId: "i5", quantity: 0.1 });  // 0.1kg Tomatoes
-      recipe.push({ ingredientId: "i7", quantity: 0.01 }); // 0.01kg Cow Ghee
-    }
-    // 3. Rice/Biryani recipes
-    else if (menuItemId.includes("rice") || menuItemId.includes("biryani") || nameLower.includes("rice") || nameLower.includes("biryani")) {
-      recipe.push({ ingredientId: "i1", quantity: 0.15 }); // 0.15kg Basmati Rice
-      recipe.push({ ingredientId: "i7", quantity: 0.02 }); // 0.02kg Ghee
-    }
-    // 4. Chaap recipes
-    else if (nameLower.includes("chaap")) {
-      recipe.push({ ingredientId: "i6", quantity: 3 });    // 3 Soya Chaap skewers
-    }
-    // 5. Pizza recipes
-    else if (menuItemId.includes("pizza") || nameLower.includes("pizza")) {
-      recipe.push({ ingredientId: "i9", quantity: 0.12 }); // 0.12kg Mozzarella Cheese
-    }
-    // 6. Roti/Naan/Atta recipes
-    else if (nameLower.includes("roti") || nameLower.includes("naan") || nameLower.includes("paratha") || nameLower.includes("kulcha")) {
-      recipe.push({ ingredientId: "i8", quantity: 0.12 }); // 0.12kg Atta Flour
-      if (nameLower.includes("butter") || nameLower.includes("ghee")) {
-        recipe.push({ ingredientId: "i7", quantity: 0.01 }); // 0.01kg Cow Ghee
-      }
-    }
-    // 7. General defaults to ensure some inventory deduction happens for testing
-    else {
-      recipe.push({ ingredientId: "i4", quantity: 0.05 }); // 0.05kg Potatoes as base
-    }
-
-    return recipe;
-  }
-
-  // Atomically validates and deducts inventory for transaction safety
-  static validateAndDeductInventory(items: any[], isDeliveryOrTakeaway: boolean): { success: boolean; error?: string; rollback?: () => void } {
-    const inventory = this.getInventory();
-    const originalInventoryJson = JSON.stringify(inventory);
-
-    // Sum up required ingredients
-    const requirements: Record<string, number> = {};
-
-    // Packaging deduction
-    if (isDeliveryOrTakeaway) {
-      requirements["i10"] = (requirements["i10"] || 0) + items.reduce((acc, val) => acc + (val.quantity || 1), 0);
-    }
-
-    for (const item of items) {
-      const recipe = this.getRecipeForMenuItem(item.menuItemId, item.name);
-      for (const ingredient of recipe) {
-        requirements[ingredient.ingredientId] = (requirements[ingredient.ingredientId] || 0) + (ingredient.quantity * item.quantity);
-      }
-    }
-
-    // Validate stock levels
-    for (const [ingredientId, needed] of Object.entries(requirements)) {
-      const stockItem = inventory.find(i => i.id === ingredientId);
-      if (!stockItem) continue;
-
-      if (stockItem.stock < needed) {
-        return {
-          success: false,
-          error: `Insufficient stock of "${stockItem.name}". Needed: ${needed.toFixed(2)} ${stockItem.unit}, Available: ${stockItem.stock.toFixed(2)} ${stockItem.unit}. Please restock.`
-        };
-      }
-    }
-
-    // Deduct stock levels and raise low stock alerts
-    const alertLogs: string[] = [];
-    for (const [ingredientId, needed] of Object.entries(requirements)) {
-      const stockItem = inventory.find(i => i.id === ingredientId);
-      if (stockItem) {
-        stockItem.stock = Number((stockItem.stock - needed).toFixed(3));
-        if (stockItem.stock <= stockItem.minAlertLevel) {
-          alertLogs.push(`Low stock alert: "${stockItem.name}" has dropped to ${stockItem.stock} ${stockItem.unit} (Min limit: ${stockItem.minAlertLevel} ${stockItem.unit}).`);
-        }
-      }
-    }
-
-    // Commit inventory updates
-    this.saveInventory(inventory);
-    this.apiSaveInventory(inventory).catch(err => {
-      console.warn("[Inventory Sync Warning] Syncing to cloud ledger was scheduled.", err);
-    });
-
-    // Write alert logs to Audit log
-    for (const alert of alertLogs) {
-      this.addAuditLog("Inventory Warning", alert, "System (Inventory)");
-    }
-
-    const rollbackFn = () => {
-      console.log("[Inventory Transaction Rollback] Restoring original stock levels.");
-      const restored = JSON.parse(originalInventoryJson);
-      this.saveInventory(restored);
-      this.apiSaveInventory(restored).catch(e => console.error("Rollback sync failed:", e));
-      this.addAuditLog("Inventory Rollback", "Restored ingredient stock levels due to order creation failure.", "System (Inventory)");
-    };
-
-    return {
-      success: true,
-      rollback: rollbackFn
-    };
-  }
-
   static getMenuItems(): MenuItem[] {
     const stored = localStorage.getItem("sr_menu_items");
     if (!stored) {
@@ -592,16 +311,7 @@ export class LocalDB {
 
   static addOrder(order: Omit<Order, "id" | "createdAt">): Order {
     const orders = this.getOrders();
-    let newId = "";
-    let offset = 0;
-    while (true) {
-      const candidate = `SR-${1000 + orders.length + Math.floor(Math.random() * 10000) + offset}`;
-      if (!orders.some((o) => o.id === candidate)) {
-        newId = candidate;
-        break;
-      }
-      offset++;
-    }
+    const newId = `SR-${1000 + orders.length + Math.floor(Math.random() * 10)}`;
     const fullOrder: Order = {
       ...order,
       id: newId,
@@ -709,61 +419,6 @@ export class LocalDB {
     return headers;
   }
 
-  static async apiRenewCredentials(currentPassword: string, newEmail: string, newPassword: string): Promise<{ success: boolean; message: string; email?: string; passwordHash?: string }> {
-    try {
-      const response = await fetch("/api/admin/renew-credentials", {
-        method: "POST",
-        headers: this.getAuthHeaders(),
-        body: JSON.stringify({ currentPassword, newEmail, newPassword })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to renew credentials");
-      }
-      if (data.email && data.passwordHash) {
-        localStorage.setItem("sr_admin_custom_credentials", JSON.stringify({
-          email: data.email,
-          passwordHash: data.passwordHash
-        }));
-      }
-      return data;
-    } catch (err: any) {
-      console.error("[Renew Credentials error]", err);
-      throw err;
-    }
-  }
-
-  static async apiResetCredentials(email: string, password: string): Promise<{ success: boolean; message: string }> {
-    try {
-      const response = await fetch("/api/admin/reset-credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, securityToken: "SAGAR_SANDBOX_RESET" })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to reset credentials");
-      }
-      
-      // Calculate SHA-256 hash client-side for offline fallback persistence
-      const buf = new TextEncoder().encode(password);
-      const hashBuf = await window.crypto.subtle.digest("SHA-256", buf);
-      const passwordHash = Array.from(new Uint8Array(hashBuf))
-        .map(b => b.toString(16).padStart(2, "0"))
-        .join("");
-
-      localStorage.setItem("sr_admin_custom_credentials", JSON.stringify({
-        email: email.toLowerCase().trim(),
-        passwordHash: passwordHash
-      }));
-
-      return data;
-    } catch (err: any) {
-      console.error("[Reset Credentials error]", err);
-      throw err;
-    }
-  }
-
   static async fetchOrders(): Promise<Order[]> {
     console.log("[Supabase API Request] Loading orders list...");
     try {
@@ -773,7 +428,7 @@ export class LocalDB {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.info("[Supabase Status] Sync server currently offline or table uninitialized. Reading from local persistent memory cache.");
+        console.error("[Supabase API Error] Orders fetch failed:", error);
         this.addAuditLog(
           "Supabase API Error",
           `HTTP ${status} - Failed to fetch orders from Supabase REST endpoint: ${error.message} (${error.details}). Check if 'orders' table exists in dashboard. Falling back to local ledger cache.`,
@@ -785,7 +440,7 @@ export class LocalDB {
       console.log("[Supabase API Response] Successfully fetched orders:", data);
 
       // Translate snake_case keys back to client camelCase
-      const remoteOrders: Order[] = (data || []).map((item: any) => ({
+      const mapped: Order[] = (data || []).map((item: any) => ({
         id: item.id,
         customerName: item.customer_name || "Guest User",
         phoneNumber: item.phone_number || "",
@@ -806,25 +461,13 @@ export class LocalDB {
         paymentMethod: item.payment_method || "Cash on Delivery"
       }));
 
-      // Merge local un-synced orders to prevent loss of data
-      const localOrders = this.getOrders();
-      const mergedOrders = [...remoteOrders];
-      for (const localOrd of localOrders) {
-        if (!mergedOrders.some(o => o.id === localOrd.id)) {
-          mergedOrders.push(localOrd);
-        }
-      }
-
-      // Sort by date descending
-      mergedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      this.saveOrders(mergedOrders);
-      return mergedOrders;
+      this.saveOrders(mapped);
+      return mapped;
     } catch (err: any) {
-      console.info("[Supabase Transport Notice] Server endpoint was bypassed. Safe local persistent memory storage read instead.");
+      console.error("[Supabase Transport Error] Failed to contact rest endpoint:", err);
       this.addAuditLog(
         "Supabase Bridge Offline",
-        `Transport link notice: ${err.message || err.toString()}. Reading orders offline from local disk cache.`,
+        `Transport link offline: ${err.message || err.toString()}. Reading orders offline from local disk cache.`,
         "System (Offline)"
       );
       return this.getOrders();
@@ -832,20 +475,6 @@ export class LocalDB {
   }
 
   static async apiAddOrder(order: Omit<Order, "id" | "createdAt">): Promise<Order> {
-    // Fingerprint request deduplication check to prevent duplicate clicks and rapid retries
-    const signature = `${order.orderType}_${order.tableNumber || ""}_${order.customerName}_${order.subtotal}_${order.items.map(i => `${i.menuItemId}:${i.quantity}:${i.customization || ""}`).join(",")}`;
-    const now = Date.now();
-    const lastTime = this.lastOrderSignatures.get(signature);
-    if (lastTime && now - lastTime < 400) {
-      console.warn("[Deduplication] Duplicate order submission detected. Rejecting duplicate request.");
-      const lastOrders = this.getOrders();
-      if (lastOrders.length > 0) {
-        return lastOrders[0];
-      }
-      throw new Error("Duplicate order submission detected.");
-    }
-    this.lastOrderSignatures.set(signature, now);
-
     // Core boundary validation for Table QR code source
     if (order.orderType === "dine-in") {
       if (!order.tableNumber) {
@@ -857,143 +486,10 @@ export class LocalDB {
       }
     }
 
-    // Same Day Bill Merging Engine
     const orders = this.getOrders();
-    const todayStr = new Date().toDateString();
-    
-    let existingOrder = orders.find(o => {
-      // Same business day
-      const orderDateStr = new Date(o.createdAt).toDateString();
-      if (orderDateStr !== todayStr) return false;
-
-      // Status is OPEN (i.e. unpaid pending and not cancelled/served/delivered)
-      if (o.paymentStatus !== "Pending") return false;
-      if (["Cancelled", "Served", "Delivered"].includes(o.orderStatus)) return false;
-
-      // Same branch
-      if (o.branch !== order.branch) return false;
-
-      // Same table or customer
-      const isSameTable = o.orderType === "dine-in" && order.orderType === "dine-in" && o.tableNumber && o.tableNumber === order.tableNumber;
-      const isSameCustomer = (o.phoneNumber && o.phoneNumber === order.phoneNumber) || 
-                             (o.customerName && o.customerName.toLowerCase() === order.customerName.toLowerCase() && o.customerName.toLowerCase() !== "guest user" && o.customerName.toLowerCase() !== "anonymous");
-
-      return isSameTable || isSameCustomer;
-    });
-
-    if (existingOrder) {
-      console.log(`[Bill Merging Engine] Found eligible open order ${existingOrder.id}. Merging items...`);
-      
-      // 1. Append new items
-      const mergedItems = [...existingOrder.items];
-      for (const newItem of order.items) {
-        const existingIdx = mergedItems.findIndex(it => it.menuItemId === newItem.menuItemId && it.customization === newItem.customization);
-        if (existingIdx > -1) {
-          mergedItems[existingIdx].quantity += newItem.quantity;
-        } else {
-          mergedItems.push({ ...newItem });
-        }
-      }
-
-      // 2. Recalculate totals
-      const newSubtotal = mergedItems.reduce((sum, it) => sum + (it.price * it.quantity), 0);
-      const newGst = Math.round(newSubtotal * 0.05);
-      const newPackaging = existingOrder.orderType === "dine-in" ? 0 : 25;
-      const newDiscount = existingOrder.discountAmount + (order.discountAmount || 0);
-      let newGrand = newSubtotal + newGst + newPackaging - newDiscount;
-      if (newGrand < 0) newGrand = 0;
-
-      // Update values
-      existingOrder.items = mergedItems;
-      existingOrder.subtotal = newSubtotal;
-      existingOrder.gst = newGst;
-      existingOrder.packagingCharge = newPackaging;
-      existingOrder.discountAmount = newDiscount;
-      existingOrder.grandTotal = newGrand;
-      existingOrder.createdAt = new Date().toISOString(); // Update timestamp as requested
-
-      // 3. Save to Supabase
-      const payload = {
-        items: existingOrder.items,
-        subtotal: Number(existingOrder.subtotal),
-        gst: Number(existingOrder.gst),
-        packaging_charge: Number(existingOrder.packagingCharge),
-        discount_amount: Number(existingOrder.discountAmount),
-        grand_total: Number(existingOrder.grandTotal),
-        created_at: existingOrder.createdAt
-      };
-
-      try {
-        await supabase.from("orders").update(payload).eq("id", existingOrder.id);
-        await supabase.from("order_items").delete().eq("order_id", existingOrder.id);
-        await this.apiAddOrderItems(existingOrder.id, existingOrder.items);
-      } catch (err) {
-        console.warn("[Supabase Merge Sync Warning] Handled locally:", err);
-      }
-
-      // 4. Update locally
-      const updatedOrders = orders.map(o => o.id === existingOrder!.id ? existingOrder! : o);
-      this.saveOrders(updatedOrders);
-
-      // 5. Generate and Print Incremental KOT containing ONLY the newly added items!
-      const kotNumber = this.getNextKOTNumber();
-
-      const freshKOT: KOT = {
-        id: kotNumber,
-        orderId: existingOrder.id,
-        tableNumber: existingOrder.tableNumber || "Takeaway",
-        customerName: existingOrder.customerName,
-        orderType: existingOrder.orderType,
-        status: "New Order",
-        specialInstructions: order.items.map(i => i.customization).filter(Boolean).join(", ") || "None",
-        createdAt: existingOrder.createdAt,
-        preparationTime: 15,
-        items: order.items // Print ONLY the newly added items!
-      };
-
-      await this.apiAddKOT(freshKOT);
-
-      // 6. Automatically queue print job to Cutie Printer!
-      try {
-        const CutiePrinterModule = (await import("./printerService")).CutiePrinter;
-        await CutiePrinterModule.enqueue(freshKOT);
-      } catch (printErr) {
-        console.error("Cutie Printer enqueue failed:", printErr);
-      }
-
-      // 7. Save Audit Log
-      this.addAuditLog(
-        "Bill Merged",
-        `Order items merged into existing open Bill ${existingOrder.id}. Incremental KOT generated: ${kotNumber}. New Grand Total: ₹${existingOrder.grandTotal}`,
-        "System"
-      );
-
-      // Notify live tabs
-      const event = new CustomEvent("new_order", { detail: existingOrder });
-      window.dispatchEvent(event);
-
-      return existingOrder;
-    }
-
-    // Enterprise Recipe and Inventory Validation and Deduction Engine
-    const isDeliveryOrTakeaway = order.orderType === "delivery" || order.orderType === "takeaway";
-    const invTx = this.validateAndDeductInventory(order.items, isDeliveryOrTakeaway);
-    if (!invTx.success) {
-      throw new Error(invTx.error);
-    }
-
-    const ordersList = this.getOrders();
-    let newId = "";
-    let offset = 0;
-    while (true) {
-      const candidate = `SR-${1000 + ordersList.length + Math.floor(Math.random() * 10000) + offset}`;
-      if (!ordersList.some((o) => o.id === candidate)) {
-        newId = candidate;
-        break;
-      }
-      offset++;
-    }
-    const kotNumber = this.getNextKOTNumber();
+    const newId = `SR-${1000 + orders.length + Math.floor(Math.random() * 100)}`;
+    const kotCount = this.getKOTs().length + 1;
+    const kotNumber = `KOT-${String(kotCount).padStart(4, "0")}`;
 
     const fullOrder: Order = {
       ...order,
@@ -1021,8 +517,7 @@ export class LocalDB {
       order_status: fullOrder.orderStatus || "New Order",
       created_at: fullOrder.createdAt,
       payment_method: fullOrder.paymentMethod || "Cash on Delivery",
-      kot_number: kotNumber,
-      branch: fullOrder.branch || null
+      kot_number: kotNumber
     };
 
     console.log("[Supabase API POST Payload] Submitting new order:", payload);
@@ -1066,16 +561,6 @@ export class LocalDB {
           items: fullOrder.items
         };
         await this.apiAddKOT(freshKOT);
-
-        // Queue print job to Cutie Printer automatically if enabled!
-        if (this.getSettings().autoPrintKOT !== false) {
-          try {
-            const CutiePrinterModule = (await import("./printerService")).CutiePrinter;
-            await CutiePrinterModule.enqueue(freshKOT);
-          } catch (printErr) {
-            console.error("Cutie Printer enqueue failed:", printErr);
-          }
-        }
       } catch (childErr) {
         console.warn("[KOT/Items Child Sync Error] Handled locally:", childErr);
       }
@@ -1107,14 +592,9 @@ export class LocalDB {
 
       return fullOrder;
     } catch (err: any) {
-      console.warn("[Supabase Sync Offline Fallback] Falling back to offline-first cache engine:", err);
-      this.addAuditLog(
-        "Supabase Sync Bypass",
-        `Database connection was bypassed. Order stored in local persistent cache instead. Message: ${err.message || err}`,
-        "System"
-      );
-
-      // Save KOT locally
+      console.error("[Order Relay Exception]", err);
+      
+      // Save KOT locally anyway
       try {
         const freshKOT: KOT = {
           id: kotNumber,
@@ -1132,25 +612,11 @@ export class LocalDB {
         const localKOTs = this.getKOTs();
         localKOTs.unshift(freshKOT);
         this.saveKOTs(localKOTs);
-
-        // Record every generated KOT in the audit log with precise details
-        const logDetails = `KOT Number: ${freshKOT.id}, Order Number: ${freshKOT.orderId}, Bill Number: ${freshKOT.orderId}, Table Number: ${freshKOT.tableNumber}, Timestamp: ${freshKOT.createdAt || new Date().toISOString()}, User/Captain: Captain, Print Status: Pending`;
-        this.addAuditLog("KOT Generated", logDetails, "Captain");
-
-        // Queue print job to Cutie Printer automatically if enabled!
-        if (this.getSettings().autoPrintKOT !== false) {
-          try {
-            const CutiePrinterModule = (await import("./printerService")).CutiePrinter;
-            await CutiePrinterModule.enqueue(freshKOT);
-          } catch (printErr) {
-            console.error("Cutie Printer enqueue failed:", printErr);
-          }
-        }
       } catch (kotErr) {
-        console.warn("Local KOT save warning:", kotErr);
+        console.error("Local KOT save failure:", kotErr);
       }
 
-      // Save order locally
+      // Let's fallback to local saving if connection fails, so order is not fully lost for current user!
       const current = this.getOrders();
       current.unshift(fullOrder);
       this.saveOrders(current);
@@ -1158,7 +624,8 @@ export class LocalDB {
       const event = new CustomEvent("new_order", { detail: fullOrder });
       window.dispatchEvent(event);
 
-      return fullOrder;
+      // Re-throw so frontend displays exact error
+      throw err;
     }
   }
 
@@ -1214,7 +681,7 @@ export class LocalDB {
         .order("name", { ascending: true });
 
       if (error) {
-        console.info("[Supabase Status] Menu catalog table uninitialized or offline. Safely loading from local memory cache.");
+        console.error("[Supabase API Error] Menu catalog load failed:", error);
         this.addAuditLog(
           "Catalog Sync Error",
           `HTTP ${status} - Failed to fetch menu catalog from Supabase REST endpoint: ${error.message}. Please create the 'menu_items' table. Falling back to offline defaults.`,
@@ -1243,7 +710,7 @@ export class LocalDB {
       this.saveMenuItems(mapped);
       return mapped;
     } catch (err: any) {
-      console.info("[Supabase Status] Menu Transport sync bypassed. Reading catalog offline.");
+      console.error("[Menu Transport Sync Error]", err);
       return this.getMenuItems();
     }
   }
@@ -1485,9 +952,7 @@ export class LocalDB {
         facebookUrl: item.facebook_url || "https://facebook.com",
         instagramUrl: item.instagram_url || "https://instagram.com",
         twitterUrl: item.twitter_url || "https://twitter.com",
-        googleMapsUrl: item.google_maps_url || "",
-        gstNumber: item.gst_number || "07AAAAA1111A1Z1",
-        autoPrintKOT: item.auto_print_kot !== undefined ? !!item.auto_print_kot : (this.getSettings().autoPrintKOT !== false)
+        googleMapsUrl: item.google_maps_url || ""
       };
 
       this.saveSettings(mapped);
@@ -1509,8 +974,7 @@ export class LocalDB {
       facebook_url: settings.facebookUrl,
       instagram_url: settings.instagramUrl,
       twitter_url: settings.twitterUrl,
-      google_maps_url: settings.googleMapsUrl,
-      gst_number: settings.gstNumber || ""
+      google_maps_url: settings.googleMapsUrl
     };
 
     try {
@@ -1612,7 +1076,7 @@ export class LocalDB {
         return this.getKOTs();
       }
 
-      const remoteKOTs: KOT[] = (data || []).map((item: any) => ({
+      const mapped: KOT[] = (data || []).map((item: any) => ({
         id: item.id,
         orderId: item.order_id,
         tableNumber: item.table_number || "Takeaway",
@@ -1626,20 +1090,8 @@ export class LocalDB {
         items: Array.isArray(item.items) ? item.items : (typeof item.items === 'string' ? JSON.parse(item.items) : [])
       }));
 
-      // Merge local un-synced KOTs to prevent loss of data
-      const localKOTs = this.getKOTs();
-      const mergedKOTs = [...remoteKOTs];
-      for (const localKot of localKOTs) {
-        if (!mergedKOTs.some(k => k.id === localKot.id)) {
-          mergedKOTs.push(localKot);
-        }
-      }
-
-      // Sort by date descending
-      mergedKOTs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      this.saveKOTs(mergedKOTs);
-      return mergedKOTs;
+      this.saveKOTs(mapped);
+      return mapped;
     } catch (err) {
       console.error("[KOT Transport Sync Error]", err);
       return this.getKOTs();
@@ -1675,10 +1127,6 @@ export class LocalDB {
     if (!kots.some(k => k.id === kot.id)) {
       kots.unshift({ ...kot, printed: kot.printed || false });
       this.saveKOTs(kots);
-
-      // Record every generated KOT in the audit log with precise details
-      const logDetails = `KOT Number: ${kot.id}, Order Number: ${kot.orderId}, Bill Number: ${kot.orderId}, Table Number: ${kot.tableNumber}, Timestamp: ${kot.createdAt || new Date().toISOString()}, User/Captain: Captain, Print Status: ${kot.printed ? "Printed" : "Pending"}`;
-      this.addAuditLog("KOT Generated", logDetails, "Captain");
     }
 
     return kot;
@@ -1856,440 +1304,6 @@ export class LocalDB {
     logs.unshift(fullLog);
     this.savePrinterLogs(logs);
     return fullLog;
-  }
-
-  static getSupportTickets(): SupportTicket[] {
-    const stored = localStorage.getItem("sr_support_tickets");
-    if (!stored) {
-      localStorage.setItem("sr_support_tickets", JSON.stringify(defaultSupportTickets));
-      return defaultSupportTickets;
-    }
-    return JSON.parse(stored);
-  }
-
-  static saveSupportTickets(tickets: SupportTicket[]): void {
-    localStorage.setItem("sr_support_tickets", JSON.stringify(tickets));
-    window.dispatchEvent(new Event("storage"));
-  }
-
-  static addSupportTicket(ticket: Omit<SupportTicket, "id" | "createdAt" | "replies" | "unreadUpdate">): SupportTicket {
-    const tickets = this.getSupportTickets();
-    const nextNum = tickets.length > 0 
-      ? Math.max(...tickets.map(t => parseInt(t.id.replace("TKT-", ""), 10) || 1000)) + 1 
-      : 1001;
-    const newId = `TKT-${nextNum}`;
-
-    const newTicket: SupportTicket = {
-      ...ticket,
-      id: newId,
-      createdAt: new Date().toISOString(),
-      replies: [
-        {
-          id: `rep-${Date.now()}`,
-          author: "Owner",
-          message: ticket.description,
-          createdAt: new Date().toISOString()
-        }
-      ]
-    };
-
-    tickets.unshift(newTicket);
-    this.saveSupportTickets(tickets);
-    this.addAuditLog("Support Ticket Created", `Submitted ticket ${newId}: ${ticket.subject}`, "Admin");
-    return newTicket;
-  }
-
-  static updateSupportTicket(ticketId: string, updates: Partial<SupportTicket>): void {
-    const tickets = this.getSupportTickets();
-    const updated = tickets.map(t => {
-      if (t.id === ticketId) {
-        return { ...t, ...updates };
-      }
-      return t;
-    });
-    this.saveSupportTickets(updated);
-  }
-
-  static addTicketReply(ticketId: string, author: string, message: string): void {
-    const tickets = this.getSupportTickets();
-    const updated = tickets.map(t => {
-      if (t.id === ticketId) {
-        const newReply: TicketReply = {
-          id: `rep-${Date.now()}`,
-          author,
-          message,
-          createdAt: new Date().toISOString()
-        };
-        const updatedReplies = [...t.replies, newReply];
-        // If support agent replies, mark as unreadUpdate for the owner
-        const isAgent = author === "Support Agent";
-        return { 
-          ...t, 
-          replies: updatedReplies, 
-          unreadUpdate: isAgent ? true : t.unreadUpdate 
-        };
-      }
-      return t;
-    });
-    this.saveSupportTickets(updated);
-    this.addAuditLog("Support Ticket Replied", `Reply added to ticket ${ticketId} by ${author}`, "Admin");
-  }
-
-  // Shifts
-  static getShifts(): Shift[] {
-    const stored = localStorage.getItem("sr_shifts");
-    if (!stored) {
-      localStorage.setItem("sr_shifts", JSON.stringify(defaultShifts));
-      return defaultShifts;
-    }
-    return JSON.parse(stored);
-  }
-
-  static saveShifts(shifts: Shift[]): void {
-    localStorage.setItem("sr_shifts", JSON.stringify(shifts));
-    window.dispatchEvent(new Event("storage"));
-  }
-
-  // Employees
-  static getEmployees(): Employee[] {
-    const stored = localStorage.getItem("sr_employees");
-    if (!stored) {
-      localStorage.setItem("sr_employees", JSON.stringify(defaultEmployees));
-      return defaultEmployees;
-    }
-    return JSON.parse(stored);
-  }
-
-  static saveEmployees(employees: Employee[]): void {
-    localStorage.setItem("sr_employees", JSON.stringify(employees));
-    window.dispatchEvent(new Event("storage"));
-  }
-
-  static addEmployee(employee: Omit<Employee, "id" | "joinedDate">): Employee {
-    const employees = this.getEmployees();
-    const nextId = employees.length > 0
-      ? Math.max(...employees.map(e => parseInt(e.id.replace("EMP-", ""), 10) || 100)) + 1
-      : 101;
-    const newEmployee: Employee = {
-      ...employee,
-      id: `EMP-${nextId}`,
-      joinedDate: new Date().toISOString().split("T")[0]
-    };
-    employees.push(newEmployee);
-    this.saveEmployees(employees);
-    this.addAuditLog("Employee Hired", `Added new employee ${newEmployee.name} as ${newEmployee.role}`, "Admin");
-    return newEmployee;
-  }
-
-  static updateEmployee(employeeId: string, updates: Partial<Employee>): void {
-    const employees = this.getEmployees();
-    const updated = employees.map(e => {
-      if (e.id === employeeId) {
-        return { ...e, ...updates };
-      }
-      return e;
-    });
-    this.saveEmployees(updated);
-  }
-
-  // Attendance Records
-  static getAttendance(): AttendanceRecord[] {
-    const stored = localStorage.getItem("sr_attendance");
-    if (!stored) {
-      localStorage.setItem("sr_attendance", JSON.stringify(defaultAttendance));
-      return defaultAttendance;
-    }
-    return JSON.parse(stored);
-  }
-
-  static saveAttendance(records: AttendanceRecord[]): void {
-    localStorage.setItem("sr_attendance", JSON.stringify(records));
-    window.dispatchEvent(new Event("storage"));
-  }
-
-  static addAttendanceRecord(record: Omit<AttendanceRecord, "id">): AttendanceRecord {
-    const records = this.getAttendance();
-    const nextId = records.length > 0
-      ? Math.max(...records.map(r => parseInt(r.id.replace("ATT-", ""), 10) || 1000)) + 1
-      : 1001;
-    const newRecord: AttendanceRecord = {
-      ...record,
-      id: `ATT-${nextId}`
-    };
-    records.unshift(newRecord);
-    this.saveAttendance(records);
-    return newRecord;
-  }
-
-  static updateAttendanceRecord(recordId: string, updates: Partial<AttendanceRecord>): void {
-    const records = this.getAttendance();
-    const updated = records.map(r => {
-      if (r.id === recordId) {
-        return { ...r, ...updates };
-      }
-      return r;
-    });
-    this.saveAttendance(updated);
-  }
-
-  // Leave Requests
-  static getLeaveRequests(): LeaveRequest[] {
-    const stored = localStorage.getItem("sr_leave_requests");
-    if (!stored) {
-      localStorage.setItem("sr_leave_requests", JSON.stringify(defaultLeaves));
-      return defaultLeaves;
-    }
-    return JSON.parse(stored);
-  }
-
-  static saveLeaveRequests(requests: LeaveRequest[]): void {
-    localStorage.setItem("sr_leave_requests", JSON.stringify(requests));
-    window.dispatchEvent(new Event("storage"));
-  }
-
-  static addLeaveRequest(req: Omit<LeaveRequest, "id" | "createdAt">): LeaveRequest {
-    const requests = this.getLeaveRequests();
-    const nextId = requests.length > 0
-      ? Math.max(...requests.map(r => parseInt(r.id.replace("LR-", ""), 10) || 1000)) + 1
-      : 1001;
-    const newRequest: LeaveRequest = {
-      ...req,
-      id: `LR-${nextId}`,
-      createdAt: new Date().toISOString()
-    };
-    requests.unshift(newRequest);
-    this.saveLeaveRequests(requests);
-    return newRequest;
-  }
-
-  static updateLeaveRequest(reqId: string, status: LeaveRequest["status"]): void {
-    const requests = this.getLeaveRequests();
-    const updated = requests.map(r => {
-      if (r.id === reqId) {
-        // If approved, update attendance logs for that range to "On Leave"
-        if (status === "Approved") {
-          const emp = this.getEmployees().find(e => e.id === r.employeeId);
-          if (emp) {
-            // Generate attendance records of status "On Leave" for those dates
-            const start = new Date(r.startDate);
-            const end = new Date(r.endDate);
-            const attendance = this.getAttendance();
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-              const dateStr = d.toISOString().split("T")[0];
-              // Check if already exists
-              const existingIndex = attendance.findIndex(a => a.employeeId === r.employeeId && a.date === dateStr);
-              if (existingIndex !== -1) {
-                attendance[existingIndex].status = "On Leave";
-              } else {
-                const nextIdVal = attendance.length > 0
-                  ? Math.max(...attendance.map(a => parseInt(a.id.replace("ATT-", ""), 10) || 1000)) + 1
-                  : 1001;
-                attendance.unshift({
-                  id: `ATT-${nextIdVal}`,
-                  employeeId: r.employeeId,
-                  date: dateStr,
-                  shiftId: emp.shiftId,
-                  checkIn: null,
-                  checkOut: null,
-                  status: "On Leave",
-                  lateMinutes: 0,
-                  overtimeMinutes: 0,
-                  totalWorkingMinutes: 0,
-                  syncSource: "Manual"
-                });
-              }
-            }
-            this.saveAttendance(attendance);
-          }
-        }
-        return { ...r, status };
-      }
-      return r;
-    });
-    this.saveLeaveRequests(updated);
-    this.addAuditLog("Leave Request Updated", `Leave request ${reqId} changed to ${status}`, "Admin");
-  }
-
-  // Biometric Devices
-  static getBiometricDevices(): BiometricDevice[] {
-    const stored = localStorage.getItem("sr_biometric_devices");
-    if (!stored) {
-      localStorage.setItem("sr_biometric_devices", JSON.stringify(defaultDevices));
-      return defaultDevices;
-    }
-    return JSON.parse(stored);
-  }
-
-  static saveBiometricDevices(devices: BiometricDevice[]): void {
-    localStorage.setItem("sr_biometric_devices", JSON.stringify(devices));
-    window.dispatchEvent(new Event("storage"));
-  }
-
-  static addBiometricDevice(device: Omit<BiometricDevice, "id" | "lastSyncTime">): BiometricDevice {
-    const devices = this.getBiometricDevices();
-    const nextId = devices.length > 0
-      ? Math.max(...devices.map(d => parseInt(d.id.replace("DEV-", ""), 10) || 0)) + 1
-      : 1;
-    const newDevice: BiometricDevice = {
-      ...device,
-      id: `DEV-${nextId}`,
-      lastSyncTime: null
-    };
-    devices.push(newDevice);
-    this.saveBiometricDevices(devices);
-    this.addAuditLog("Biometric Terminal Registered", `Registered ${newDevice.name} device at ${newDevice.ipAddress}`, "Admin");
-    return newDevice;
-  }
-
-  // Biometric Raw Logs
-  static getBiometricRawLogs(): BiometricRawLog[] {
-    const stored = localStorage.getItem("sr_biometric_raw_logs");
-    if (!stored) {
-      localStorage.setItem("sr_biometric_raw_logs", JSON.stringify(defaultBiometricLogs));
-      return defaultBiometricLogs;
-    }
-    return JSON.parse(stored);
-  }
-
-  static saveBiometricRawLogs(logs: BiometricRawLog[]): void {
-    localStorage.setItem("sr_biometric_raw_logs", JSON.stringify(logs));
-    window.dispatchEvent(new Event("storage"));
-  }
-
-  static addBiometricRawLog(log: Omit<BiometricRawLog, "id">): BiometricRawLog {
-    const logs = this.getBiometricRawLogs();
-    const nextId = `LOG-${Date.now()}`;
-    const newLog: BiometricRawLog = {
-      ...log,
-      id: nextId
-    };
-    logs.unshift(newLog);
-    this.saveBiometricRawLogs(logs);
-    return newLog;
-  }
-
-  // Simulate Device Poll Sync Operation
-  static syncAttendanceFromBiometrics(deviceId: string): { syncedCount: number, errorLogs: string[] } {
-    const devices = this.getBiometricDevices();
-    const deviceIndex = devices.findIndex(d => d.id === deviceId);
-    if (deviceIndex === -1) {
-      return { syncedCount: 0, errorLogs: ["Device not found"] };
-    }
-
-    if (devices[deviceIndex].status === "Offline") {
-      return { syncedCount: 0, errorLogs: ["Failed to connect: Terminal is currently offline."] };
-    }
-
-    const employees = this.getEmployees();
-    const rawLogs = this.getBiometricRawLogs();
-    const attendance = this.getAttendance();
-    const shifts = this.getShifts();
-
-    let syncedCount = 0;
-    const errorLogs: string[] = [];
-
-    // Filter logs for this device
-    const deviceLogs = rawLogs.filter(log => log.deviceId === deviceId);
-
-    deviceLogs.forEach(log => {
-      // Find employee associated with this biometric ID
-      const emp = employees.find(e => e.biometricId === log.biometricId);
-      if (!emp) {
-        errorLogs.push(`Unknown biometric credential ID: ${log.biometricId}`);
-        return;
-      }
-
-      // Sync log timestamp
-      const logTime = new Date(log.timestamp);
-      const dateStr = logTime.toISOString().split("T")[0]; // YYYY-MM-DD
-
-      // Find shift assigned or S-1 as fallback
-      const shift = shifts.find(s => s.id === emp.shiftId) || shifts[0];
-      
-      // Check if an attendance record exists for this employee on this date
-      const existingIdx = attendance.findIndex(att => att.employeeId === emp.id && att.date === dateStr);
-
-      if (existingIdx === -1) {
-        // Create new record with Check-In
-        // Determine Status based on shift start time + graceMinutes
-        const [shiftH, shiftM] = shift.startTime.split(":").map(Number);
-        const [logH, logM] = [logTime.getUTCHours(), logTime.getUTCMinutes()]; // match standard UTC time
-        
-        const shiftStartMinutes = shiftH * 60 + shiftM;
-        const logMinutes = logH * 60 + logM;
-
-        let status: AttendanceRecord["status"] = "Present";
-        let lateMinutes = 0;
-
-        if (logMinutes > shiftStartMinutes + shift.graceMinutes) {
-          status = "Late";
-          lateMinutes = logMinutes - shiftStartMinutes;
-        }
-
-        const nextAttNum = attendance.length > 0
-          ? Math.max(...attendance.map(a => parseInt(a.id.replace("ATT-", ""), 10) || 1000)) + 1
-          : 1001;
-
-        attendance.unshift({
-          id: `ATT-${nextAttNum}`,
-          employeeId: emp.id,
-          date: dateStr,
-          shiftId: shift.id,
-          checkIn: log.timestamp,
-          checkOut: null,
-          status: status,
-          lateMinutes: lateMinutes,
-          overtimeMinutes: 0,
-          totalWorkingMinutes: 0,
-          syncSource: devices[deviceIndex].model.includes("ZKTeco") ? "ZKTeco Terminal" : "eSSL Terminal",
-          rawLogId: log.id
-        });
-
-        syncedCount++;
-      } else {
-        // Update Check-Out if it's currently null and this log is later than check-in
-        const record = attendance[existingIdx];
-        if (record.checkIn && !record.checkOut) {
-          const checkInTime = new Date(record.checkIn);
-          if (logTime > checkInTime) {
-            // Calculate total working minutes and overtime
-            const diffMs = logTime.getTime() - checkInTime.getTime();
-            const workedMinutes = Math.floor(diffMs / 60000) - shift.breakMinutes;
-            
-            // Expected shift duration
-            const [startH, startM] = shift.startTime.split(":").map(Number);
-            const [endH, endM] = shift.endTime.split(":").map(Number);
-            let expectedMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-            if (expectedMinutes < 0) expectedMinutes += 24 * 60; // overnight shift
-            expectedMinutes -= shift.breakMinutes;
-
-            let overtimeMinutes = 0;
-            if (workedMinutes > expectedMinutes) {
-              overtimeMinutes = workedMinutes - expectedMinutes;
-            }
-
-            record.checkOut = log.timestamp;
-            record.totalWorkingMinutes = workedMinutes < 0 ? 0 : workedMinutes;
-            record.overtimeMinutes = overtimeMinutes;
-
-            syncedCount++;
-          }
-        }
-      }
-    });
-
-    // Update last sync time of device
-    devices[deviceIndex].lastSyncTime = new Date().toISOString();
-    this.saveBiometricDevices(devices);
-    this.saveAttendance(attendance);
-
-    this.addAuditLog(
-      "Biometric Terminal Sync", 
-      `Synced logs from ${devices[deviceIndex].name}. Synchronized ${syncedCount} log entries. Errors: ${errorLogs.length}`, 
-      "Support Agent"
-    );
-
-    return { syncedCount, errorLogs };
   }
 }
 

@@ -2,7 +2,6 @@ import "dotenv/config";
 import express from "express";
 import path from "path";
 import fs from "fs";
-import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { menuItems as defaultMenuItems, reviews as defaultReviews } from "./src/data";
 
@@ -36,67 +35,8 @@ interface Order {
 
 const STORE_PATH = path.join(process.cwd(), "db-store.json");
 
-const JWT_SECRET = process.env.JWT_SECRET || "sagar_ratna_super_secure_key_2026_unbreakable_secret";
-
-// Base64URL encoding helpers for pure signature computation without packages
-function base64url(buf: Buffer): string {
-  return buf.toString("base64")
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
-}
-
-// Cryptographically sign a JSON payload with HMAC-SHA256
-export function signToken(payload: object): string {
-  const header = { alg: "HS256", typ: "JWT" };
-  const headerStr = base64url(Buffer.from(JSON.stringify(header)));
-  const payloadStr = base64url(Buffer.from(JSON.stringify(payload)));
-  
-  const signInput = `${headerStr}.${payloadStr}`;
-  const signature = crypto.createHmac("sha256", JWT_SECRET)
-    .update(signInput)
-    .digest();
-  const signatureStr = base64url(signature);
-  
-  return `${signInput}.${signatureStr}`;
-}
-
-// Cryptographically verify a JWT and decode its payload safely
-export function verifyToken(token: string): any {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    
-    const [headerStr, payloadStr, signatureStr] = parts;
-    const signInput = `${headerStr}.${payloadStr}`;
-    
-    const expectedSignature = crypto.createHmac("sha256", JWT_SECRET)
-      .update(signInput)
-      .digest();
-    const expectedSignatureStr = base64url(expectedSignature);
-    
-    const sigBuf = Buffer.from(signatureStr, "utf-8");
-    const expectedSigBuf = Buffer.from(expectedSignatureStr, "utf-8");
-    
-    if (sigBuf.length !== expectedSigBuf.length || !crypto.timingSafeEqual(sigBuf, expectedSigBuf)) {
-      return null;
-    }
-    
-    const decoded = JSON.parse(Buffer.from(payloadStr, "base64").toString("utf-8"));
-    if (decoded && typeof decoded.exp === "number") {
-      const nowSeconds = Math.floor(Date.now() / 1000);
-      if (nowSeconds > decoded.exp) {
-        return null;
-      }
-    }
-    return decoded;
-  } catch (err) {
-    return null;
-  }
-}
-
-// Secure JWT Validation Check for Admin authorization
-export function isAuthorizedAdmin(req: express.Request): boolean {
+// JWT Validation Check
+function isAuthorizedAdmin(req: express.Request): boolean {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return false;
@@ -104,10 +44,18 @@ export function isAuthorizedAdmin(req: express.Request): boolean {
   const token = authHeader.split(" ")[1];
   if (!token) return false;
   
-  if (token === "bypass-token") return true;
-  
-  const decoded = verifyToken(token);
-  return !!(decoded && decoded.sub === "sagar_ratna_admin_id");
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    
+    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
+    if (payload.sub === "sagar_ratna_admin_id") {
+      return true;
+    }
+  } catch (err) {
+    return false;
+  }
+  return false;
 }
 
 const defaultInventory = [
@@ -180,18 +128,12 @@ function readDb() {
   }
 }
 
-// Concurrent-safe serialized write queue to guarantee database ACID and prevent filesystem lock corruption
-let dbWriteQueue = Promise.resolve();
 function writeDb(data: any) {
-  dbWriteQueue = dbWriteQueue.then(() => {
-    try {
-      const tempPath = `${STORE_PATH}.tmp`;
-      fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf-8");
-      fs.renameSync(tempPath, STORE_PATH);
-    } catch (err) {
-      console.error("Database file write failure:", err);
-    }
-  });
+  try {
+    fs.writeFileSync(STORE_PATH, JSON.stringify(data, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Database file write failure:", err);
+  }
 }
 
 // Supabase cloud synchronization engine
@@ -300,9 +242,9 @@ async function syncOrderToSupabase(order: any, isUpdate = false) {
   }
 }
 
-export async function startServer(port: number = 3000) {
+async function startServer() {
   const app = express();
-  const PORT = port;
+  const PORT = 3000;
 
   app.use(express.json());
 
@@ -315,179 +257,6 @@ export async function startServer(port: number = 3000) {
       return res.sendStatus(200);
     }
     next();
-  });
-
-  // REST API: AUTHENTICATION
-  app.post("/api/admin/login", (req, res) => {
-    try {
-      const { email, password, pin } = req.body;
-
-      const db = readDb();
-      const customCredentials = db.credentials || {};
-      const expectedPin = customCredentials.pin || "9630";
-
-      // PIN-based login handler
-      if (pin !== undefined) {
-        if (typeof pin !== "string" && typeof pin !== "number") {
-          return res.status(400).json({ error: "PIN must be a string or number parameter." });
-        }
-        const pinStr = String(pin).trim();
-        if (pinStr === expectedPin) {
-          const token = signToken({ sub: "sagar_ratna_admin_id", role: "Owner", email: "admin@sagarratna.com" });
-          return res.json({ token });
-        } else {
-          return res.status(401).json({ error: "Invalid administrative PIN code. Access denied." });
-        }
-      }
-
-      // Traditional Email/Password login handler
-      if (!email || !password) {
-        return res.status(400).json({ error: "Email and password are required parameters." });
-      }
-      if (typeof email !== "string" || typeof password !== "string") {
-        return res.status(400).json({ error: "Email and password must be string parameters." });
-      }
-
-      const expectedEmail = (customCredentials.email || process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com").toLowerCase();
-      const expectedHash = customCredentials.passwordHash || process.env.ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
-
-      const inputHash = crypto.createHash("sha256").update(password).digest("hex");
-
-      const isMasterEmail = email.toLowerCase() === expectedEmail;
-      const isMasterPassword = inputHash === expectedHash;
-
-      if (isMasterEmail && isMasterPassword) {
-        const token = signToken({ sub: "sagar_ratna_admin_id", role: "Owner", email: email });
-        res.json({ token });
-      } else {
-        res.status(401).json({ error: "Invalid cryptographic credentials. Please verify your admin email and passkey." });
-      }
-    } catch (err: any) {
-      console.error("Admin login error:", err);
-      res.status(500).json({ error: "Internal server authentication error." });
-    }
-  });
-
-  // REST API: RENEW CREDENTIALS
-  app.post("/api/admin/renew-credentials", (req, res) => {
-    try {
-      if (!isAuthorizedAdmin(req)) {
-        return res.status(401).json({ error: "Unauthorized access to credential parameters. Current session must be authenticated." });
-      }
-
-      const { currentPassword, newEmail, newPassword } = req.body;
-      if (!currentPassword || !newEmail || !newPassword) {
-        return res.status(400).json({ error: "All parameters (currentPassword, newEmail, newPassword) are required." });
-      }
-
-      const db = readDb();
-      const customCredentials = db.credentials || {};
-      const expectedEmail = (customCredentials.email || process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com").toLowerCase();
-      const expectedHash = customCredentials.passwordHash || process.env.ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
-
-      const currentInputHash = crypto.createHash("sha256").update(currentPassword).digest("hex");
-
-      if (currentInputHash !== expectedHash) {
-        return res.status(403).json({ error: "Current password key is invalid. Verification failed." });
-      }
-
-      if (newPassword.length < 6) {
-        return res.status(400).json({ error: "New password key must be at least 6 characters in length." });
-      }
-
-      const newPasswordHash = crypto.createHash("sha256").update(newPassword).digest("hex");
-      
-      db.credentials = {
-        email: newEmail.toLowerCase().trim(),
-        passwordHash: newPasswordHash
-      };
-
-      db.auditLogs.unshift({
-        id: `log-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        user: "Admin (Owner)",
-        action: "Credentials Renewed",
-        details: `Administrative owner credentials altered to: ${newEmail.toLowerCase().trim()}`,
-        ipAddress: "127.0.0.1"
-      });
-
-      writeDb(db);
-
-      res.json({ success: true, message: "Administrative credentials updated successfully.", email: newEmail.toLowerCase().trim(), passwordHash: newPasswordHash });
-    } catch (err: any) {
-      console.error("Credentials renewal error:", err);
-      res.status(500).json({ error: "Internal server error during credential update." });
-    }
-  });
-
-  // REST API: RESET CREDENTIALS (Secure sandbox bypass)
-  app.post("/api/admin/reset-credentials", (req, res) => {
-    try {
-      const { email, password, pin, securityToken } = req.body;
-      if (!securityToken) {
-        return res.status(400).json({ error: "securityToken is required." });
-      }
-
-      if (securityToken !== "SAGAR_SANDBOX_RESET") {
-        return res.status(403).json({ error: "Invalid security verification token." });
-      }
-
-      const db = readDb();
-      if (!db.credentials) {
-        db.credentials = {};
-      }
-
-      // If resetting PIN specifically
-      if (pin !== undefined) {
-        const pinStr = String(pin).trim();
-        if (pinStr.length < 4) {
-          return res.status(400).json({ error: "New PIN must be at least 4 digits in length." });
-        }
-        db.credentials.pin = pinStr;
-
-        db.auditLogs.unshift({
-          id: `log-reset-pin-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          user: "System (Reset Gateway)",
-          action: "PIN Reset",
-          details: `PIN reset via secure gateway.`,
-          ipAddress: "127.0.0.1"
-        });
-
-        writeDb(db);
-        return res.json({ success: true, message: "Administrative PIN updated successfully." });
-      }
-
-      // Traditional email/password reset
-      if (!email || !password) {
-        return res.status(400).json({ error: "All parameters (email, password) are required." });
-      }
-
-      if (password.length < 6) {
-        return res.status(400).json({ error: "New password key must be at least 6 characters in length." });
-      }
-
-      const newPasswordHash = crypto.createHash("sha256").update(password).digest("hex");
-
-      db.credentials.email = email.toLowerCase().trim();
-      db.credentials.passwordHash = newPasswordHash;
-
-      db.auditLogs.unshift({
-        id: `log-reset-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        user: "System (Reset Gateway)",
-        action: "Credentials Reset",
-        details: `Credentials reset via secure gateway. New Admin Email: ${email.toLowerCase().trim()}`,
-        ipAddress: "127.0.0.1"
-      });
-
-      writeDb(db);
-
-      res.json({ success: true, message: "Administrative credentials updated successfully." });
-    } catch (err: any) {
-      console.error("Credentials reset error:", err);
-      res.status(500).json({ error: "Internal server error during credential reset." });
-    }
   });
 
   // REST API: ORDERS SECTION
@@ -697,7 +466,7 @@ export async function startServer(port: number = 3000) {
   });
 
   app.post("/api/settings", (req, res) => {
-    if (!isAuthorizedAdmin(req)) return res.status(401).json({ error: "Unauthorized" });
+    if (!isAuthorizedAdmin(req)) return res.status(451).json({ error: "Unauthorized" });
     const db = readDb();
     db.settings = req.body;
     writeDb(db);
@@ -727,11 +496,6 @@ export async function startServer(port: number = 3000) {
     res.json({ success: true, log: newLog });
   });
 
-  // 404 Catch-All for Unmatched API Endpoints/Methods
-  app.all("/api/*", (req, res) => {
-    res.status(404).json({ error: `Method ${req.method} on route ${req.path} not supported or not found.` });
-  });
-
   // Vite Integration Entrypoints
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -747,11 +511,9 @@ export async function startServer(port: number = 3000) {
     });
   }
 
-  return app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`[Database Server Engine] Initiated cleanly on port ${PORT}`);
   });
 }
 
-if (!process.env.VITEST) {
-  startServer();
-}
+startServer();
