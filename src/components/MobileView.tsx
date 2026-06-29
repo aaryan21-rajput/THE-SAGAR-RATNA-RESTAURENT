@@ -1784,16 +1784,7 @@ export default function MobileView({
               </a>
             </div>
 
-            {/* Extremely Small Minimalist elegant admin login link requested */}
-            <div className="text-center pt-8 border-t border-stone-200">
-              <button
-                onClick={onAdminClick}
-                className="px-3 py-1.5 bg-stone-50 border border-stone-250 text-[10px] text-stone-500 hover:text-[#aa7c11] rounded-lg tracking-wider uppercase font-semibold cursor-pointer"
-                id="mobile-admin-btn"
-              >
-                🔐 Staff Admin Dashboard
-              </button>
-            </div>
+
           </div>
         ),
       })}
