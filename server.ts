@@ -324,7 +324,7 @@ export async function startServer(port: number = 3000) {
 
       const db = readDb();
       const customCredentials = db.credentials || {};
-      const expectedPin = customCredentials.pin || "1234";
+      const expectedPin = customCredentials.pin || "9630";
 
       // PIN-based login handler
       if (pin !== undefined) {

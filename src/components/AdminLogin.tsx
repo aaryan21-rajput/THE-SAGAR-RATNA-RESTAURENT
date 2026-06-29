@@ -40,19 +40,25 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         body: JSON.stringify({ pin: inputPin.trim() })
       });
 
-      if (response.ok) {
+      const contentType = response.headers.get("content-type") || "";
+      if (response.ok && contentType.includes("application/json")) {
         const data = await response.json();
         onLoginSuccess(data.token, true);
         LocalDB.addAuditLog("Admin Authorized", `Logged in from IP 127.0.0.1 using secure PIN`, "Admin");
       } else {
+        // If the server returns a non-JSON page (e.g., HTML fallback page), fallback to local storage authentication
+        if (!contentType.includes("application/json")) {
+          throw new Error("STATIC_FALLBACK");
+        }
+        
         const errData = await response.json().catch(() => ({}));
         setErrorCode(errData.error || "Invalid administrative PIN. Access denied.");
         LocalDB.addAuditLog("Access Denied", `Failed PIN entry attempt`, "System Gateway");
         setPin("");
       }
     } catch (err) {
-      // Fallback for offline/development sandbox
-      const expectedPin = "1234";
+      // Fallback for offline/development/static hosting (like Vercel)
+      const expectedPin = localStorage.getItem("sr_local_admin_pin") || "9630";
       if (inputPin === expectedPin) {
         const payload = btoa(JSON.stringify({ sub: "sagar_ratna_admin_id", role: "Owner", email: "admin@sagarratna.com" }));
         const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
@@ -60,7 +66,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         const token = `${header}.${payload}.${mockSignature}`;
         
         onLoginSuccess(token, true);
-        LocalDB.addAuditLog("Admin Authorized (Offline Fallback)", `Logged in offline using fallback PIN`, "Admin");
+        LocalDB.addAuditLog("Admin Authorized (Local Fallback)", `Logged in via local storage fallback PIN`, "Admin");
       } else {
         setErrorCode("Invalid PIN or server connection timed out.");
         setPin("");
@@ -144,6 +150,11 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         })
       });
 
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("STATIC_FALLBACK");
+      }
+
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || "Failed to update administrative PIN.");
@@ -158,7 +169,20 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         setPin("");
       }, 2000);
     } catch (err: any) {
-      setResetError(err.message || "Failed to reset administrative PIN.");
+      if (err.message === "STATIC_FALLBACK" || err.message?.includes("Failed to fetch")) {
+        // Beautiful local static fallback (e.g. Vercel)
+        localStorage.setItem("sr_local_admin_pin", resetPin);
+        setResetSuccess("Administrative PIN code successfully updated (Saved locally for static hosting)!");
+        LocalDB.addAuditLog("Admin PIN Altered (Local)", `Owner PIN updated in client-side storage`, "System Gateway");
+        
+        setTimeout(() => {
+          setShowForgotModal(false);
+          setResetSuccess(null);
+          setPin("");
+        }, 2000);
+      } else {
+        setResetError(err.message || "Failed to reset administrative PIN.");
+      }
     } finally {
       setIsResetting(false);
     }
