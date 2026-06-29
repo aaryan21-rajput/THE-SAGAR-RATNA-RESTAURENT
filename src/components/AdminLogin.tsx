@@ -14,8 +14,27 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
   const [rememberMe, setRememberMe] = useState(true);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [showForgotModal, setShowForgotModal] = useState(false);
-  const [recoveryEmail, setRecoveryEmail] = useState("");
-  const [recoverySuccess, setRecoverySuccess] = useState(false);
+  
+  // Custom states for credential resetting
+  const [resetEmail, setResetEmail] = useState("aaryanrajputofficial@gmail.com");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+  const [securityCodeInput, setSecurityCodeInput] = useState("");
+  const [securityCodeGenerated, setSecurityCodeGenerated] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
+
+  const openResetModal = () => {
+    setResetEmail("aaryanrajputofficial@gmail.com");
+    setResetPassword("");
+    setResetConfirmPassword("");
+    setResetError(null);
+    setResetSuccess(null);
+    setSecurityCodeInput("");
+    setSecurityCodeGenerated(Math.floor(1000 + Math.random() * 9000).toString());
+    setShowForgotModal(true);
+  };
 
   // Pre-fill email if remembered
   useEffect(() => {
@@ -107,18 +126,51 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
     }
   };
 
-  const handleForgotPassword = (e: React.FormEvent) => {
+  const handleResetCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!recoveryEmail.trim()) return;
+    setResetError(null);
+    setResetSuccess(null);
 
-    setRecoverySuccess(true);
-    LocalDB.addAuditLog("Password Recovery Request", `Password assistance triggered for ${recoveryEmail}. Security code dispatched.`, "System Gateway");
+    if (!resetEmail.trim() || !resetPassword.trim() || !resetConfirmPassword.trim()) {
+      setResetError("All fields are required to update credentials.");
+      return;
+    }
 
-    setTimeout(() => {
-      setShowForgotModal(false);
-      setRecoverySuccess(false);
-      setRecoveryEmail("");
-    }, 4000);
+    if (resetPassword !== resetConfirmPassword) {
+      setResetError("New password and confirmation password do not match.");
+      return;
+    }
+
+    if (resetPassword.length < 6) {
+      setResetError("New password must be at least 6 characters in length.");
+      return;
+    }
+
+    if (securityCodeInput.trim() !== securityCodeGenerated) {
+      setResetError("Incorrect security verification code.");
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      const res = await LocalDB.apiResetCredentials(resetEmail.trim(), resetPassword.trim());
+      setResetSuccess(res.message || "Administrative credentials updated successfully!");
+      LocalDB.addAuditLog("Admin Credentials Reset", `Owner credentials successfully altered to ${resetEmail.trim()}`, "System Reset Gateway");
+      
+      // Auto-prefill the login email field
+      setEmail(resetEmail.trim());
+      setPassword("");
+      
+      // Dismiss modal after success
+      setTimeout(() => {
+        setShowForgotModal(false);
+        setResetSuccess(null);
+      }, 2500);
+    } catch (err: any) {
+      setResetError(err.message || "Failed to reset credentials. Please try again.");
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -197,7 +249,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
               </label>
               <button
                 type="button"
-                onClick={() => setShowForgotModal(true)}
+                onClick={openResetModal}
                 className="text-xs font-mono text-[#aa7c11] hover:text-[#d4af37] hover:underline"
               >
                 FORGOT KEY?
@@ -249,7 +301,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         </form>
       </motion.div>
 
-      {/* Forgot Password modal */}
+      {/* Credentials Reset & Setup Modal */}
       <AnimatePresence>
         {showForgotModal && (
           <>
@@ -266,7 +318,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-y-0 sm:inset-y-auto sm:my-auto max-w-md w-full bg-white border border-stone-200 p-6 sm:p-8 rounded-none sm:rounded-2xl z-50 shadow-2xl h-fit"
+              className="fixed inset-x-4 max-w-md mx-auto my-auto bg-white border border-stone-200 p-6 sm:p-8 rounded-3xl z-50 shadow-2xl h-fit self-center"
             >
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-3">
@@ -274,51 +326,112 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
                     <KeyRound className="w-5 h-5 animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-serif font-bold text-stone-900 uppercase tracking-wider">Credential Recovery</h3>
-                    <p className="text-xs text-stone-500 font-sans mt-0.5">Secure identity recovery gateway</p>
+                    <h3 className="text-lg font-serif font-bold text-stone-900 uppercase tracking-wider">Credential Reset</h3>
+                    <p className="text-xs text-stone-500 font-sans mt-0.5">Secure sandbox administration gateway</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowForgotModal(false)}
-                  className="p-1 text-stone-400 hover:text-stone-900"
+                  className="p-1 text-stone-400 hover:text-stone-900 cursor-pointer"
                 >
                   ✕
                 </button>
               </div>
 
-              {recoverySuccess ? (
+              {resetSuccess ? (
                 <div className="py-6 text-center space-y-4">
-                  <div className="w-12 h-12 bg-green-50 border border-green-200 text-green-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                  <div className="w-12 h-12 bg-green-50 border border-green-200 text-green-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
                     ✓
                   </div>
-                  <h4 className="text-sm font-semibold text-stone-950 uppercase tracking-wider">Recovery Dispatch Successful</h4>
-                  <p className="text-xs text-stone-600 max-w-sm mx-auto font-sans leading-relaxed">
-                    A cryptographic security code and recovery links have been sent to your registered owner email and SMS: **+91-11-4560-4560**.
+                  <h4 className="text-sm font-semibold text-stone-950 uppercase tracking-wider">Credentials Reset Successful</h4>
+                  <p className="text-xs text-stone-650 max-w-sm mx-auto font-sans leading-relaxed">
+                    {resetSuccess} Prefilling login credentials...
                   </p>
                 </div>
               ) : (
-                <form onSubmit={handleForgotPassword} className="space-y-4">
-                  <p className="text-xs text-stone-500 leading-relaxed font-sans">
-                    Please provide the registered administrator email below. The system will dispatch a multi-factor passcode and reset instructions directly to your owner email security channel.
+                <form onSubmit={handleResetCredentialsSubmit} className="space-y-4">
+                  <p className="text-xs text-stone-505 leading-relaxed font-sans">
+                    You can directly update the primary administrator credentials. Enter your target email, specify a new password, and verify the human check below.
                   </p>
-                  <div className="space-y-1.5 font-sans">
-                    <label className="block text-[10px] font-mono text-stone-450 uppercase tracking-widest">
-                      ADMIN EMAIL
-                    </label>
-                    <input
-                      required
-                      type="email"
-                      value={recoveryEmail}
-                      onChange={(e) => setRecoveryEmail(e.target.value)}
-                      placeholder="admin@example.com"
-                      className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 focus:border-yellow-600 focus:outline-none rounded-xl text-sm text-stone-900 font-sans"
-                    />
+
+                  {resetError && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-600" />
+                      <span>{resetError}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-3 font-sans">
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-mono text-stone-450 uppercase tracking-widest">
+                        ADMIN EMAIL ADDRESS
+                      </label>
+                      <input
+                        required
+                        type="email"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        placeholder="admin@example.com"
+                        className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 focus:border-[#d4af37] focus:outline-none rounded-xl text-sm text-stone-900 font-sans"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-mono text-stone-450 uppercase tracking-widest">
+                        NEW PASSWORD KEY
+                      </label>
+                      <input
+                        required
+                        type="password"
+                        placeholder="Min 6 characters"
+                        value={resetPassword}
+                        onChange={(e) => setResetPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 focus:border-[#d4af37] focus:outline-none rounded-xl text-sm text-stone-900 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-mono text-stone-450 uppercase tracking-widest">
+                        CONFIRM NEW PASSWORD
+                      </label>
+                      <input
+                        required
+                        type="password"
+                        placeholder="Repeat new password"
+                        value={resetConfirmPassword}
+                        onChange={(e) => setResetConfirmPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 focus:border-[#d4af37] focus:outline-none rounded-xl text-sm text-stone-900 font-mono"
+                      />
+                    </div>
+
+                    <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-4">
+                      <div className="space-y-1 flex-1">
+                        <label className="block text-[10px] font-mono text-stone-450 uppercase tracking-widest">
+                          HUMAN CHECK CODE
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          maxLength={4}
+                          placeholder="Type code"
+                          value={securityCodeInput}
+                          onChange={(e) => setSecurityCodeInput(e.target.value)}
+                          className="w-full px-4 py-2 bg-stone-50 border border-stone-200 focus:border-[#d4af37] focus:outline-none rounded-xl text-sm text-stone-900 font-mono text-center tracking-widest"
+                        />
+                      </div>
+                      <div className="flex flex-col items-center justify-center bg-stone-100 border border-stone-200 p-2.5 rounded-xl h-fit min-w-[100px] select-none">
+                        <span className="text-xs text-stone-400 font-mono uppercase tracking-wider mb-0.5">VERIFY</span>
+                        <span className="text-lg font-mono font-bold text-stone-800 tracking-widest">{securityCodeGenerated}</span>
+                      </div>
+                    </div>
                   </div>
+
                   <button
                     type="submit"
-                    className="w-full py-2.5 bg-[#d4af37] text-white font-semibold rounded-xl text-xs uppercase tracking-widest hover:bg-[#aa7c11] transition-colors focus:outline-none cursor-pointer"
+                    disabled={isResetting}
+                    className="w-full py-3 bg-gradient-to-r from-[#d4af37] to-[#aa7c11] text-white font-semibold rounded-xl text-xs uppercase tracking-widest hover:from-[#aa7c11] hover:to-[#8a650e] transition-all focus:outline-none cursor-pointer flex items-center justify-center gap-2"
                   >
-                    DISPATCH RECOVERY CODE
+                    {isResetting ? "UPDATING CREDENTIALS..." : "RESET & UPDATE CREDENTIALS"}
                   </button>
                 </form>
               )}

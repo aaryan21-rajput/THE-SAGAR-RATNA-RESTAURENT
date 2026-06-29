@@ -1752,6 +1752,27 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       />
                     </div>
 
+                    <div className="space-y-1 sm:col-span-2 pt-2 border-t border-stone-100">
+                      <label className="text-[10px] font-sans font-bold text-[#C67C4E] uppercase tracking-widest block mb-2">AUTOMATIC PRINTER CONFIGURATION</label>
+                      <div className="flex items-center justify-between p-4 bg-[#FAF6F0]/40 border border-stone-200 rounded-xl gap-4">
+                        <div className="space-y-1 text-left">
+                          <span className="text-xs font-bold text-stone-900 block font-sans">Automatic KOT Printing on Order Received</span>
+                          <p className="text-[11px] text-stone-500 font-sans leading-relaxed">
+                            Automatically routes new guest orders directly to the kitchen (KOT) queue on Cutie Printer emulator. If disabled, orders are saved to the dashboard without automatically queueing physical prints.
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={settings.autoPrintKOT !== false}
+                            onChange={(e) => setSettings({ ...settings, autoPrintKOT: e.target.checked })}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-stone-200 rounded-full peer peer-checked:bg-[#C67C4E] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                      </div>
+                    </div>
+
                   </div>
 
                   <button

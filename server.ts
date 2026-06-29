@@ -400,6 +400,48 @@ export async function startServer(port: number = 3000) {
     }
   });
 
+  // REST API: RESET CREDENTIALS (Secure sandbox bypass)
+  app.post("/api/admin/reset-credentials", (req, res) => {
+    try {
+      const { email, password, securityToken } = req.body;
+      if (!email || !password || !securityToken) {
+        return res.status(400).json({ error: "All parameters (email, password, securityToken) are required." });
+      }
+
+      if (securityToken !== "SAGAR_SANDBOX_RESET") {
+        return res.status(403).json({ error: "Invalid security verification token." });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ error: "New password key must be at least 6 characters in length." });
+      }
+
+      const db = readDb();
+      const newPasswordHash = crypto.createHash("sha256").update(password).digest("hex");
+
+      db.credentials = {
+        email: email.toLowerCase().trim(),
+        passwordHash: newPasswordHash
+      };
+
+      db.auditLogs.unshift({
+        id: `log-reset-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        user: "System (Reset Gateway)",
+        action: "Credentials Reset",
+        details: `Credentials reset via secure gateway. New Admin Email: ${email.toLowerCase().trim()}`,
+        ipAddress: "127.0.0.1"
+      });
+
+      writeDb(db);
+
+      res.json({ success: true, message: "Administrative credentials updated successfully." });
+    } catch (err: any) {
+      console.error("Credentials reset error:", err);
+      res.status(500).json({ error: "Internal server error during credential reset." });
+    }
+  });
+
   // REST API: ORDERS SECTION
   app.get("/api/orders", (req, res) => {
     if (!isAuthorizedAdmin(req)) {

@@ -84,6 +84,7 @@ export interface RestaurantSettings {
   twitterUrl: string;
   googleMapsUrl: string;
   gstNumber?: string;
+  autoPrintKOT?: boolean;
 }
 
 // Generate premium mock orders spanning the last 30 days
@@ -217,7 +218,8 @@ const defaultSettings: RestaurantSettings = {
   instagramUrl: "https://instagram.com",
   twitterUrl: "https://twitter.com",
   googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3501.0772718136367!2d77.1082!3d28.6322!2m3!1f0!2f0!3f0!3m2!1i1248!2i786!4m2!3m1!1s0x0%3A0x0!2zMjgmdW5pcXVl!5e0!3m2!1sen!2sin!4v1680000000000!5m2!1sen!2sin",
-  gstNumber: "07AAAAA1111A1Z1"
+  gstNumber: "07AAAAA1111A1Z1",
+  autoPrintKOT: true
 };
 
 // Initial logs
@@ -722,6 +724,37 @@ export class LocalDB {
     }
   }
 
+  static async apiResetCredentials(email: string, password: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await fetch("/api/admin/reset-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, securityToken: "SAGAR_SANDBOX_RESET" })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to reset credentials");
+      }
+      
+      // Calculate SHA-256 hash client-side for offline fallback persistence
+      const buf = new TextEncoder().encode(password);
+      const hashBuf = await window.crypto.subtle.digest("SHA-256", buf);
+      const passwordHash = Array.from(new Uint8Array(hashBuf))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      localStorage.setItem("sr_admin_custom_credentials", JSON.stringify({
+        email: email.toLowerCase().trim(),
+        passwordHash: passwordHash
+      }));
+
+      return data;
+    } catch (err: any) {
+      console.error("[Reset Credentials error]", err);
+      throw err;
+    }
+  }
+
   static async fetchOrders(): Promise<Order[]> {
     console.log("[Supabase API Request] Loading orders list...");
     try {
@@ -1016,12 +1049,14 @@ export class LocalDB {
         };
         await this.apiAddKOT(freshKOT);
 
-        // Queue print job to Cutie Printer automatically!
-        try {
-          const CutiePrinterModule = (await import("./printerService")).CutiePrinter;
-          await CutiePrinterModule.enqueue(freshKOT);
-        } catch (printErr) {
-          console.error("Cutie Printer enqueue failed:", printErr);
+        // Queue print job to Cutie Printer automatically if enabled!
+        if (this.getSettings().autoPrintKOT !== false) {
+          try {
+            const CutiePrinterModule = (await import("./printerService")).CutiePrinter;
+            await CutiePrinterModule.enqueue(freshKOT);
+          } catch (printErr) {
+            console.error("Cutie Printer enqueue failed:", printErr);
+          }
         }
       } catch (childErr) {
         console.warn("[KOT/Items Child Sync Error] Handled locally:", childErr);
@@ -1084,12 +1119,14 @@ export class LocalDB {
         const logDetails = `KOT Number: ${freshKOT.id}, Order Number: ${freshKOT.orderId}, Bill Number: ${freshKOT.orderId}, Table Number: ${freshKOT.tableNumber}, Timestamp: ${freshKOT.createdAt || new Date().toISOString()}, User/Captain: Captain, Print Status: Pending`;
         this.addAuditLog("KOT Generated", logDetails, "Captain");
 
-        // Queue print job to Cutie Printer automatically!
-        try {
-          const CutiePrinterModule = (await import("./printerService")).CutiePrinter;
-          await CutiePrinterModule.enqueue(freshKOT);
-        } catch (printErr) {
-          console.error("Cutie Printer enqueue failed:", printErr);
+        // Queue print job to Cutie Printer automatically if enabled!
+        if (this.getSettings().autoPrintKOT !== false) {
+          try {
+            const CutiePrinterModule = (await import("./printerService")).CutiePrinter;
+            await CutiePrinterModule.enqueue(freshKOT);
+          } catch (printErr) {
+            console.error("Cutie Printer enqueue failed:", printErr);
+          }
         }
       } catch (kotErr) {
         console.warn("Local KOT save warning:", kotErr);
@@ -1431,7 +1468,8 @@ export class LocalDB {
         instagramUrl: item.instagram_url || "https://instagram.com",
         twitterUrl: item.twitter_url || "https://twitter.com",
         googleMapsUrl: item.google_maps_url || "",
-        gstNumber: item.gst_number || "07AAAAA1111A1Z1"
+        gstNumber: item.gst_number || "07AAAAA1111A1Z1",
+        autoPrintKOT: item.auto_print_kot !== undefined ? !!item.auto_print_kot : (this.getSettings().autoPrintKOT !== false)
       };
 
       this.saveSettings(mapped);
