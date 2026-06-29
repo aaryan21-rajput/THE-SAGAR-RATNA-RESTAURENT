@@ -97,7 +97,15 @@ export function verifyToken(token: string): any {
 
 // Secure JWT Validation Check for Admin authorization
 export function isAuthorizedAdmin(req: express.Request): boolean {
-  return true;
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return false;
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) return false;
+  
+  const decoded = verifyToken(token);
+  return !!(decoded && decoded.sub === "sagar_ratna_admin_id");
 }
 
 const defaultInventory = [
@@ -290,8 +298,6 @@ async function syncOrderToSupabase(order: any, isUpdate = false) {
   }
 }
 
-const generatedIds = new Set<string>();
-
 export async function startServer(port: number = 3000) {
   const app = express();
   const PORT = port;
@@ -310,7 +316,89 @@ export async function startServer(port: number = 3000) {
   });
 
   // REST API: AUTHENTICATION
+  app.post("/api/admin/login", (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required parameters." });
+      }
+      if (typeof email !== "string" || typeof password !== "string") {
+        return res.status(400).json({ error: "Email and password must be string parameters." });
+      }
 
+      const db = readDb();
+      const customCredentials = db.credentials || {};
+      const expectedEmail = (customCredentials.email || process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com").toLowerCase();
+      const expectedHash = customCredentials.passwordHash || process.env.ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
+
+      const inputHash = crypto.createHash("sha256").update(password).digest("hex");
+
+      const isMasterEmail = email.toLowerCase() === expectedEmail;
+      const isMasterPassword = inputHash === expectedHash;
+
+      if (isMasterEmail && isMasterPassword) {
+        const token = signToken({ sub: "sagar_ratna_admin_id", role: "Owner", email: email });
+        res.json({ token });
+      } else {
+        res.status(401).json({ error: "Invalid cryptographic credentials. Please verify your admin email and passkey." });
+      }
+    } catch (err: any) {
+      console.error("Admin login error:", err);
+      res.status(500).json({ error: "Internal server authentication error." });
+    }
+  });
+
+  // REST API: RENEW CREDENTIALS
+  app.post("/api/admin/renew-credentials", (req, res) => {
+    try {
+      if (!isAuthorizedAdmin(req)) {
+        return res.status(401).json({ error: "Unauthorized access to credential parameters. Current session must be authenticated." });
+      }
+
+      const { currentPassword, newEmail, newPassword } = req.body;
+      if (!currentPassword || !newEmail || !newPassword) {
+        return res.status(400).json({ error: "All parameters (currentPassword, newEmail, newPassword) are required." });
+      }
+
+      const db = readDb();
+      const customCredentials = db.credentials || {};
+      const expectedEmail = (customCredentials.email || process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com").toLowerCase();
+      const expectedHash = customCredentials.passwordHash || process.env.ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
+
+      const currentInputHash = crypto.createHash("sha256").update(currentPassword).digest("hex");
+
+      if (currentInputHash !== expectedHash) {
+        return res.status(403).json({ error: "Current password key is invalid. Verification failed." });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: "New password key must be at least 6 characters in length." });
+      }
+
+      const newPasswordHash = crypto.createHash("sha256").update(newPassword).digest("hex");
+      
+      db.credentials = {
+        email: newEmail.toLowerCase().trim(),
+        passwordHash: newPasswordHash
+      };
+
+      db.auditLogs.unshift({
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        user: "Admin (Owner)",
+        action: "Credentials Renewed",
+        details: `Administrative owner credentials altered to: ${newEmail.toLowerCase().trim()}`,
+        ipAddress: "127.0.0.1"
+      });
+
+      writeDb(db);
+
+      res.json({ success: true, message: "Administrative credentials updated successfully.", email: newEmail.toLowerCase().trim(), passwordHash: newPasswordHash });
+    } catch (err: any) {
+      console.error("Credentials renewal error:", err);
+      res.status(500).json({ error: "Internal server error during credential update." });
+    }
+  });
 
   // REST API: ORDERS SECTION
   app.get("/api/orders", (req, res) => {
@@ -361,14 +449,8 @@ export async function startServer(port: number = 3000) {
       }
 
       // 3. Serialized Unique Order ID Sequence
-      let orderId;
       const ordersCount = db.orders.length;
-      let attempts = 0;
-      do {
-        orderId = `SR-${1000 + ordersCount + Math.floor(Math.random() * 100000 + attempts * 100)}`;
-        attempts++;
-      } while (db.orders.some((o: any) => o.id === orderId) || generatedIds.has(orderId));
-      generatedIds.add(orderId);
+      const orderId = `SR-${1000 + ordersCount + Math.floor(Math.random() * 900 + 100)}`;
 
       const newOrder: Order = {
         ...orderData,
@@ -382,7 +464,6 @@ export async function startServer(port: number = 3000) {
 
       db.orders.unshift(newOrder); // New order on top
       writeDb(db);
-      generatedIds.delete(orderId);
 
       // Trigger asynchronous Supabase synchronization in the background to ensure blazing fast checkout
       syncOrderToSupabase(newOrder, false).catch(e => {

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  BarChart3, ShoppingCart, Utensils, Users, Landmark, Ticket,
+import { 
+  BarChart3, ShoppingCart, Utensils, Users, Landmark, Ticket, 
   MessageSquare, Package, ShieldCheck, Settings, LogOut, Check, X,
-  Search, Plus, Filter, Download, Info, Trash2, Edit2, AlertCircle,
+  Search, Plus, Filter, Download, Info, Trash2, Edit2, AlertCircle, 
   Activity, Star, Sparkles, Volume2, VolumeX, Printer, CheckCircle, QrCode,
   LifeBuoy, Clock
 } from "lucide-react";
@@ -19,7 +19,6 @@ import StaffAttendanceManager from "./StaffAttendanceManager";
 interface AdminDashboardProps {
   onLogout: () => void;
 }
-
 
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
@@ -52,8 +51,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showBillPrint, setShowBillPrint] = useState<Order | null>(null);
   const [selectedPaperWidth, setSelectedPaperWidth] = useState<"58mm" | "80mm">("80mm");
 
-
-
+  // Inactivity tracking: 10 minutes auto-logout
+  const [secondsRemaining, setSecondsRemaining] = useState(600); // 10 minutes
+  
   // Tab-specific interactive states
   const [orderFilter, setOrderFilter] = useState<string>("All");
   const [orderSearch, setOrderSearch] = useState<string>("");
@@ -73,6 +73,15 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showRestockModal, setShowRestockModal] = useState(false);
   const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null);
   const [restockAmount, setRestockAmount] = useState<number>(10);
+
+  // Administrative credentials renewal states
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [credError, setCredError] = useState<string | null>(null);
+  const [credSuccess, setCredSuccess] = useState<string | null>(null);
+  const [isRenewing, setIsRenewing] = useState(false);
 
   // Load state from server/localStorage on boot and poll periodically
   useEffect(() => {
@@ -103,11 +112,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     const handleServerPolling = async () => {
       try {
         const freshOrders = await LocalDB.fetchOrders();
-
+        
         // Detect if there is any brand new order ID
         const existingIds = new Set(orders.map(o => o.id));
         const newOrders = freshOrders.filter(o => !existingIds.has(o.id));
-
+        
         if (newOrders.length > 0) {
           // Play standard chime sequence!
           try {
@@ -123,7 +132,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             gain.connect(audioCtx.destination);
             osc.start();
             osc.stop(audioCtx.currentTime + 0.6);
-          } catch (_) { }
+          } catch (_) {}
 
           setActiveAlerts(prev => [...newOrders, ...prev]);
           setOrders(freshOrders);
@@ -188,14 +197,47 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   };
 
+  // Keep countdown timer for inactive auto logout
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          LocalDB.addAuditLog("Auto Logout", "Session terminated due to 10 minutes of inactivity", "Secure Gate");
+          onLogout();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
+    // Reset countdown on active events
+    const resetTimer = () => {
+      setSecondsRemaining(600);
+    };
+
+    const debounceEvents = ["mousedown", "keydown", "scroll", "touchstart"];
+    debounceEvents.forEach(evt => window.addEventListener(evt, resetTimer));
+
+    return () => {
+      clearInterval(timer);
+      debounceEvents.forEach(evt => window.removeEventListener(evt, resetTimer));
+    };
+  }, [onLogout]);
+
+  // Derived settings and stats
+  const formatTimeRemaining = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
 
   // CALCULATE SECTIONS
   // 1. Orders sub-breakdowns
   const orderStats = useMemo(() => {
     const todayStr = new Date().toISOString().split("T")[0];
     const todayOrders = orders.filter(o => o.createdAt.startsWith(todayStr));
-
+    
     const revenueSum = orders
       .filter(o => o.orderStatus !== "Cancelled")
       .reduce((sum, o) => sum + o.grandTotal, 0);
@@ -220,7 +262,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   // Aggregate Customer Data
   const customerAnalytics = useMemo(() => {
     const groups: { [emailOrPhone: string]: { name: string; phone: string; email: string; totalSpend: number; count: number; lastDate: string } } = {};
-
+    
     orders.forEach(o => {
       const key = o.email || o.phoneNumber || o.customerName;
       if (!groups[key]) {
@@ -233,7 +275,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           lastDate: o.createdAt
         };
       }
-
+      
       if (o.orderStatus !== "Cancelled") {
         groups[key].totalSpend += o.grandTotal;
       }
@@ -337,7 +379,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       gain.connect(audioCtx.destination);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.4);
-    } catch (_) { }
+    } catch (_) {}
   };
 
   // OPERATIONS MODIFIERS
@@ -529,11 +571,47 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   };
 
+  const handleRenewCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCredError(null);
+    setCredSuccess(null);
+
+    if (!currentPassword || !newEmail || !newPassword || !confirmNewPassword) {
+      setCredError("All fields are required to complete security validation.");
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setCredError("New password and confirmation password do not match.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setCredError("New password key must be at least 6 characters in length.");
+      return;
+    }
+
+    setIsRenewing(true);
+    try {
+      const res = await LocalDB.apiRenewCredentials(currentPassword, newEmail, newPassword);
+      setCredSuccess(res.message || "Administrative owner credentials renewed successfully!");
+      setCurrentPassword("");
+      setNewEmail("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      await refreshAllData();
+    } catch (err: any) {
+      setCredError(err.message || "Failed to renew credentials. Please check your current password key.");
+    } finally {
+      setIsRenewing(false);
+    }
+  };
+
   // 7. Table QR Management Handlers
   const handleAddTable = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTableNo) return;
-
+    
     // Check if tableNumber already exists
     if (tables.some(t => t.tableNumber === newTableNo)) {
       alert(`Table ${newTableNo} already exists! Please use a unique number.`);
@@ -552,7 +630,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     LocalDB.saveTables(updated);
     setTables(updated);
     setSelectedTableForQr(newTbl);
-
+    
     // Reset fields
     setNewTableNo("");
     setNewCapacity(4);
@@ -587,7 +665,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     const updated = tables.filter(t => t.id !== tableId);
     LocalDB.saveTables(updated);
     setTables(updated);
-
+    
     if (selectedTableForQr?.id === tableId) {
       setSelectedTableForQr(updated[0] || null);
     }
@@ -604,7 +682,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     return orders.filter(o => {
       const matchesStatus = orderFilter === "All" || o.orderStatus === orderFilter;
       const term = orderSearch.toLowerCase();
-      const matchesSearch = !term ||
+      const matchesSearch = !term || 
         o.customerName.toLowerCase().includes(term) ||
         o.id.toLowerCase().includes(term) ||
         o.phoneNumber.includes(term);
@@ -617,7 +695,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     return menuItems.filter(item => {
       const categoryMatch = menuFilterCategory === "All" || item.category === menuFilterCategory;
       const query = menuSearch.toLowerCase();
-      const searchMatch = !query ||
+      const searchMatch = !query || 
         item.name.toLowerCase().includes(query) ||
         item.description.toLowerCase().includes(query);
       return categoryMatch && searchMatch;
@@ -626,7 +704,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-stone-850 flex flex-col font-sans select-none overflow-hidden" id="admin-hub-system">
-
+      
       {/* Dynamic Floating Global Alerts for New Orders */}
       <div className="fixed top-5 right-5 z-50 space-y-3 max-w-sm w-full font-sans">
         <AnimatePresence>
@@ -644,7 +722,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping" />
                   <span className="text-xs font-mono text-[#aa7c11] font-semibold">🚨 LIVE ORDER RECEIVED</span>
                 </div>
-                <button
+                <button 
                   onClick={() => setActiveAlerts(prev => prev.filter(a => a.id !== alertItem.id))}
                   className="text-stone-400 hover:text-stone-850 cursor-pointer"
                 >
@@ -709,27 +787,33 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {soundEnabled ? <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-[#aa7c11]" /> : <VolumeX className="w-3.5 h-3.5 md:w-4 md:h-4 text-stone-400" />}
           </button>
 
+          {/* Timeout alarm */}
+          <div className="hidden">
+            <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping" />
+            <span>⏱️ <strong className="text-stone-900">{formatTimeRemaining(secondsRemaining)}</strong></span>
+          </div>
+
           <button
             onClick={() => {
-              LocalDB.addAuditLog("Admin Exit", "Admin panel exited manually", "Admin");
+              LocalDB.addAuditLog("Admin Logout", "Authorized admin logout triggered manually", "Admin");
               onLogout();
             }}
-            className="p-1.5 md:px-3.5 md:py-1.5 bg-stone-100 hover:bg-stone-200 border border-stone-300 text-stone-700 rounded-lg transition-colors flex items-center gap-1 cursor-pointer font-bold"
+            className="p-1.5 md:px-3.5 md:py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-lg transition-colors flex items-center gap-1 cursor-pointer font-bold"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Exit Admin</span>
+            <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </header>
 
       {/* Grid Work Space */}
       <div className="flex-grow flex flex-col lg:flex-row overflow-hidden">
-
+        
         {/* Sidebar Nav rail */}
         <aside className="w-64 bg-white border-r border-stone-200/80 hidden lg:flex flex-col p-4 justify-between">
           <div className="space-y-1.5">
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 mb-2.5">MANAGEMENT SHEETS</p>
-
+            
             <SidebarBtn icon={<BarChart3 />} label="Analytics" active={activeTab === "analytics"} onClick={() => setActiveTab("analytics")} />
             <SidebarBtn icon={<ShoppingCart />} label="Order Management" active={activeTab === "orders"} count={orders.filter(o => o.orderStatus === "New Order").length} onClick={() => setActiveTab("orders")} />
             <SidebarBtn icon={<Utensils />} label="Menu Catalog" active={activeTab === "menu"} onClick={() => setActiveTab("menu")} />
@@ -740,7 +824,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <SidebarBtn icon={<QrCode />} label="Table QR Codes" active={activeTab === "tables"} onClick={() => setActiveTab("tables")} />
             <SidebarBtn icon={<Clock />} label="Staff & Attendance" active={activeTab === "attendance"} onClick={() => setActiveTab("attendance")} />
 
-
+            
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-6 pb-2.5">OPERATOR VIEWS & KOT</p>
             <SidebarBtn icon={<Utensils />} label="Kitchen Display (KDS)" active={activeTab === "kitchen"} onClick={() => setActiveTab("kitchen")} />
 
@@ -801,8 +885,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
               </div>
             </div>
-
-            <button
+            
+            <button 
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="text-[10px] bg-stone-900 hover:bg-stone-850 text-white font-mono uppercase tracking-widest px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-bold cursor-pointer transition-all border border-stone-900"
@@ -849,7 +933,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: ANALYTICS DASHBOARD OVERVIEW */}
             {activeTab === "analytics" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+                
                 {/* Header title */}
                 <div className="flex flex-col gap-1">
                   <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider">Administration Overview</h2>
@@ -870,7 +954,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
                 {/* Bento Grid Analytics Charts */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-
+                  
                   {/* Revenue Growth chart (Tailwind Custom SVG Chart) */}
                   <div className="md:col-span-8 bg-white border border-stone-200/80 p-5 rounded-2xl space-y-4 shadow-sm">
                     <div className="flex justify-between items-baseline">
@@ -899,7 +983,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           <div className="absolute -top-12 bg-stone-900 text-white px-2 py-1 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-xl">
                             Earning: ₹{item.sales}
                           </div>
-
+                          
                           {/* Colored bar */}
                           <div className={`w-full max-w-[40px] rounded-t-lg transition-all duration-500 cursor-pointer ${item.height} ${item.active ? "bg-gradient-to-t from-[#C67C4E] to-[#D4AF37] shadow-[0_4px_12px_rgba(198,124,78,0.15)]" : "bg-stone-100 hover:bg-stone-200"}`} />
                           <span className={`text-[10px] uppercase font-bold ${item.active ? "text-[#C67C4E]" : "text-stone-400"}`}>{item.day}</span>
@@ -914,12 +998,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wider font-sans mb-4">Top Culinary Sellers</h3>
                       <div className="space-y-3.5">
                         {bestSellersStats.length === 0 ? (
-                          <div className="py-12 text-center text-xs text-stone-400 font-sans">No order records recorded.</div>
+                           <div className="py-12 text-center text-xs text-stone-400 font-sans">No order records recorded.</div>
                         ) : (
                           bestSellersStats.map((item, idx) => (
                             <div key={idx} className="flex items-center justify-between text-xs font-sans">
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="w-5 h-5 bg-white border border-stone-200 rounded flex items-center justify-center text-[#aa7c11] font-bold text-[10px]">{idx + 1}</span>
+                                <span className="w-5 h-5 bg-white border border-stone-200 rounded flex items-center justify-center text-[#aa7c11] font-bold text-[10px]">{idx+1}</span>
                                 <span className="text-stone-800 truncate font-semibold">{item.name}</span>
                               </div>
                               <span className="text-[#C67C4E] bg-orange-50 font-semibold px-20 py-0.5 rounded border border-orange-100 font-sans ml-2 text-[10px]">{item.count} sold</span>
@@ -939,11 +1023,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
                 {/* Categories & Customer Growth metrics row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
+                  
                   {/* Orders categorizations summary list */}
                   <div className="bg-white border border-stone-200/85 p-5 rounded-2xl space-y-4 shadow-xs">
                     <h3 className="text-sm font-bold text-stone-850 uppercase tracking-wider font-sans">Hottest Menu Categories</h3>
-
+                    
                     <div className="space-y-3">
                       {categoriesSales.slice(0, 5).map((cat, idx) => (
                         <div key={idx} className="space-y-1.5 font-sans text-xs">
@@ -963,12 +1047,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   {/* Stock alerts and quick diagnostics panel */}
                   <div className="bg-white border border-stone-200/85 p-5 rounded-2xl space-y-4 shadow-xs">
                     <h3 className="text-sm font-bold text-stone-850 uppercase tracking-wider font-sans">Active Low Inventory Alerts</h3>
-
+                    
                     <div className="space-y-2.5">
                       {lowStockItems.length === 0 ? (
                         <div className="py-8 text-center text-xs text-green-650 font-sans flex flex-col items-center gap-2">
-                          <CheckCircle className="w-6 h-6 text-green-600 animate-pulse" />
-                          All ingredients fully stocked to safety levels!
+                           <CheckCircle className="w-6 h-6 text-green-600 animate-pulse" />
+                           All ingredients fully stocked to safety levels!
                         </div>
                       ) : (
                         lowStockItems.map((item, idx) => (
@@ -995,14 +1079,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: ORDERS LIST */}
             {activeTab === "orders" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+                
                 {/* Header title */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex flex-col gap-1">
                     <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider">Kitchen Order Dispatcher</h2>
                     <p className="text-xs text-stone-500">Track pending, preparing, and active out-for-delivery dining cycles.</p>
                   </div>
-
+                  
                   {/* Status categories switch filter pill row */}
                   <div className="flex flex-wrap gap-1.5 select-none font-sans">
                     {["All", "New Order", "Accepted", "Preparing", "Ready", "Out For Delivery", "Delivered", "Cancelled"].map((st) => (
@@ -1059,23 +1143,25 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                 <div className="text-stone-400 text-[11px] font-mono">{o.phoneNumber}</div>
                               </td>
                               <td className="p-3.5">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${o.orderType === "dine-in" ? "bg-teal-50 text-teal-700 border border-teal-100" :
-                                    o.orderType === "takeaway" ? "bg-amber-50 text-amber-700 border border-amber-100" :
-                                      "bg-blue-50 text-blue-700 border border-blue-105"
-                                  }`}>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                  o.orderType === "dine-in" ? "bg-teal-50 text-teal-700 border border-teal-100" :
+                                  o.orderType === "takeaway" ? "bg-amber-50 text-amber-700 border border-amber-100" :
+                                  "bg-blue-50 text-blue-700 border border-blue-105"
+                                }`}>
                                   {o.orderType} {o.tableNumber ? `(T-${o.tableNumber})` : ""}
                                 </span>
                               </td>
                               <td className="p-3.5 text-xs text-[#C67C4E] font-bold">₹{o.grandTotal}</td>
                               <td className="p-3.5">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${o.orderStatus === "New Order" ? "bg-red-50 text-red-650 border border-red-100" :
-                                    o.orderStatus === "Accepted" ? "bg-orange-50 text-[#C67C4E] border border-orange-100" :
-                                      o.orderStatus === "Preparing" ? "bg-blue-50 text-blue-600 border border-blue-100" :
-                                        o.orderStatus === "Ready" ? "bg-amber-50 text-amber-850 border border-amber-150" :
-                                          o.orderStatus === "Out For Delivery" ? "bg-purple-50 text-purple-650 border border-purple-100" :
-                                            o.orderStatus === "Delivered" ? "bg-green-50 text-green-700 border border-green-100" :
-                                              "bg-stone-50 text-stone-500 border border-stone-200"
-                                  }`}>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  o.orderStatus === "New Order" ? "bg-red-50 text-red-650 border border-red-100" :
+                                  o.orderStatus === "Accepted" ? "bg-orange-50 text-[#C67C4E] border border-orange-100" :
+                                  o.orderStatus === "Preparing" ? "bg-blue-50 text-blue-600 border border-blue-100" :
+                                  o.orderStatus === "Ready" ? "bg-amber-50 text-amber-850 border border-amber-150" :
+                                  o.orderStatus === "Out For Delivery" ? "bg-purple-50 text-purple-650 border border-purple-100" :
+                                  o.orderStatus === "Delivered" ? "bg-green-50 text-green-700 border border-green-100" :
+                                  "bg-stone-50 text-stone-500 border border-stone-200"
+                                }`}>
                                   {o.orderStatus}
                                 </span>
                               </td>
@@ -1094,19 +1180,19 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                 >
                                   <Printer className="w-3.5 h-3.5" />
                                 </button>
-
+                                
                                 {o.orderStatus === "New Order" && (
                                   <>
-                                    <button
+                                    <button 
                                       onClick={() => updateOrderStatus(o.id, "Accepted")}
-                                      className="p-1 bg-green-50 hover:bg-green-150 text-green-650 border border-green-200 rounded font-bold"
+                                      className="p-1 bg-green-50 hover:bg-green-150 text-green-650 border border-green-200 rounded font-bold" 
                                       title="Accept Order"
                                     >
                                       ✓
                                     </button>
-                                    <button
+                                    <button 
                                       onClick={() => updateOrderStatus(o.id, "Cancelled")}
-                                      className="p-1 bg-red-50 hover:bg-red-150 text-[#C67C4E] border border-red-200 rounded font-bold"
+                                      className="p-1 bg-red-50 hover:bg-red-150 text-[#C67C4E] border border-red-200 rounded font-bold" 
                                       title="Reject/Cancel"
                                     >
                                       ✕
@@ -1152,7 +1238,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: MENU MANAGEMENT */}
             {activeTab === "menu" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+                
                 {/* Header & Add Button */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex flex-col gap-1">
@@ -1174,7 +1260,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
                 {/* Filters Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-
+                  
                   {/* Category switcher */}
                   <select
                     value={menuFilterCategory}
@@ -1217,7 +1303,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     ) : (
                       filteredMenuItems.map((item) => (
                         <div key={item.id} className="bg-white rounded-xl border border-stone-200 p-4 space-y-3 flex flex-col justify-between group hover:border-[#d4af37]/50 hover:shadow-md transition-all shadow-xs">
-
+                          
                           <div className="space-y-2">
                             {/* Food Image and quick tags */}
                             <div className="w-full h-32 rounded-lg bg-stone-50 overflow-hidden relative border border-stone-150">
@@ -1225,7 +1311,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                               <span className={`absolute top-2 left-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${item.isVeg ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-600 border border-red-250"}`}>
                                 {item.isVeg ? "VEG" : "NON-VEG"}
                               </span>
-
+                              
                               <div className="absolute top-2 right-2 flex gap-1">
                                 {item.isChefSpecial && <span className="bg-[#d4af37] text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-xs">CHEF</span>}
                                 {item.isBestseller && <span className="bg-[#C67C4E] text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-xs">BEST</span>}
@@ -1240,7 +1326,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
                           <div className="flex items-center justify-between pt-3 border-t border-stone-100">
                             <span className="text-sm font-sans font-bold text-[#C67C4E]">₹{item.price}</span>
-
+                            
                             <div className="flex gap-1.5">
                               <button
                                 onClick={() => {
@@ -1274,7 +1360,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: CUSTOMER DIRECTORY */}
             {activeTab === "customers" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+                
                 {/* Title & Export */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex flex-col gap-1">
@@ -1321,7 +1407,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         {customerAnalytics
                           .filter(c => {
                             const term = customerSearch.toLowerCase();
-                            return !term ||
+                            return !term || 
                               c.name.toLowerCase().includes(term) ||
                               c.phone.includes(term) ||
                               c.email.toLowerCase().includes(term);
@@ -1347,7 +1433,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: REVENUE MANAGEMENT */}
             {activeTab === "revenue" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+                
                 {/* Header & CSV export */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex flex-col gap-1">
@@ -1385,7 +1471,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 {/* Sub-revenue time allocations list */}
                 <div className="bg-[#FAF6F0] border border-stone-250/30 rounded-2xl p-6 space-y-6 shadow-xs">
                   <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider font-sans">Simulated Business Period Ledger</h3>
-
+                  
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-sans text-center">
                     <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
                       <p className="text-stone-400 font-bold mb-1 uppercase text-[10px]">Today's Revenue</p>
@@ -1412,7 +1498,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: COUPONS */}
             {activeTab === "coupons" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+                
                 {/* Header & Add Button */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex flex-col gap-1">
@@ -1437,7 +1523,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {coupons.map((c, idx) => (
                       <div key={idx} className="bg-[#FAF6F0] border border-stone-200/80 p-4 rounded-xl flex flex-col justify-between gap-4 relative group shadow-sm">
-
+                        
                         <div className="space-y-2">
                           <div className="flex justify-between items-baseline">
                             <span className="text-sm font-bold font-mono tracking-widest text-[#C67C4E] bg-[#FAF6F0] border border-[#C67C4E]/20 px-2.5 py-1.5 rounded-lg font-black">
@@ -1474,7 +1560,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: GUEST REVIEWS */}
             {activeTab === "reviews" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+                
                 {/* Header list */}
                 <div className="flex flex-col gap-1">
                   <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider">Guest Book Moderation</h2>
@@ -1488,7 +1574,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   ) : (
                     reviews.map((r) => (
                       <div key={r.id} className="bg-[#FAF6F0] rounded-xl border border-stone-250/50 p-4.5 flex flex-col md:flex-row justify-between gap-4">
-
+                        
                         <div className="space-y-2 max-w-2xl">
                           <div className="flex items-center gap-2">
                             <div>
@@ -1507,7 +1593,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         </div>
 
                         <div className="flex flex-row md:flex-col justify-end gap-2 text-[10px] font-sans">
-
+                          
                           {/* Approve toggle */}
                           <button
                             onClick={() => toggleReviewApproval(r.id, !!r.approved)}
@@ -1545,7 +1631,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: SECURITY AUDIT LOGS */}
             {activeTab === "logs" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+                
                 {/* Title */}
                 <div className="flex flex-col gap-1">
                   <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider">Gateway Audit Security Logs</h2>
@@ -1558,19 +1644,19 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     <ShieldCheck className="w-4 h-4 animate-pulse" />
                     AUTHORIZED AUDIT FEED ACTIVE
                   </div>
-
+                  
                   {auditLogs.map((log) => (
                     <div key={log.id} className="p-3 bg-[#FAF6F0] rounded-xl border border-stone-200/60 space-y-1.5 hover:border-stone-300 transition-colors font-sans">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between text-[10px] font-bold text-stone-400 font-mono">
                         <span>TIMESTAMP: {new Date(log.timestamp).toISOString()}</span>
                         <span className="text-[#C67C4E]">IP ADDRESS: {log.ipAddress}</span>
                       </div>
-
+                      
                       <div className="text-xs text-stone-800">
-                        User [ <strong className="text-blue-600 font-bold">{log.user}</strong> ] triggered action:
+                        User [ <strong className="text-blue-600 font-bold">{log.user}</strong> ] triggered action: 
                         <span className="font-bold underline text-[#C67C4E] ml-1.5">{log.action}</span>
                       </div>
-
+                      
                       <p className="text-[11px] text-stone-505 font-sans font-light italic leading-relaxed">
                         Details: &ldquo;{log.details}&rdquo;
                       </p>
@@ -1584,7 +1670,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: SETTINGS */}
             {activeTab === "settings" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+                
                 {/* Title */}
                 <div className="flex flex-col gap-1">
                   <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider text-left">operating portal parameters</h2>
@@ -1594,7 +1680,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 {/* Form parameters */}
                 <form onSubmit={handleSettingsSave} className="bg-white border border-stone-200 rounded-2xl p-6 space-y-5 shadow-sm">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
+                    
                     <div className="space-y-1">
                       <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">RESTAURANT LEGAL NAME</label>
                       <input
@@ -1676,6 +1762,84 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </button>
                 </form>
 
+                {/* Renew Credentials Security Panel */}
+                <div className="flex flex-col gap-1 pt-6 border-t border-stone-200">
+                  <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider text-left">Renew owner credentials</h2>
+                  <p className="text-xs text-stone-500 font-sans">Modify administrative email address and secure access passkey.</p>
+                </div>
+
+                <form onSubmit={handleRenewCredentials} className="bg-white border border-stone-200 rounded-2xl p-6 space-y-5 shadow-sm">
+                  {credError && (
+                    <div className="p-4 bg-red-50 border border-red-150 text-red-800 rounded-xl text-xs flex items-center gap-2">
+                      <span className="font-semibold">⚠️ Error:</span> {credError}
+                    </div>
+                  )}
+
+                  {credSuccess && (
+                    <div className="p-4 bg-green-50 border border-green-150 text-green-800 rounded-xl text-xs flex items-center gap-2">
+                      <span className="font-semibold">✓ Success:</span> {credSuccess}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">CURRENT PASSWORD KEY</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">NEW OWNER EMAIL ADDRESS</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="newowner@example.com"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-sans"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">NEW SECURE PASSKEY</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="Min 6 characters"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block">CONFIRM NEW SECURE PASSKEY</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#d4af37] text-stone-900 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isRenewing}
+                    className="px-5 py-3 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-400 text-white font-bold text-xs tracking-wider uppercase rounded-xl transition-colors cursor-pointer focus:outline-none shadow-sm animate-none"
+                  >
+                    {isRenewing ? "RENEWING CREDENTIALS..." : "RENEW SECURITY CREDENTIALS"}
+                  </button>
+                </form>
+
               </motion.div>
             )}
 
@@ -1689,7 +1853,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {/* TAB CONTENT: TABLES & QR CODES */}
             {activeTab === "tables" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
-
+                
                 {/* Descriptive Top Panel Card */}
                 <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-1">
@@ -1711,7 +1875,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
                 {/* Main Two-Column split Workspace */}
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-
+                  
                   {/* Left Column (7/12 widths): Table Floorplan list */}
                   <div className="xl:col-span-7 bg-white p-5 rounded-2xl border border-stone-200 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col gap-4">
                     <div className="flex items-center justify-between border-b border-stone-100 pb-3">
@@ -1729,19 +1893,21 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           <div
                             key={table.id}
                             onClick={() => setSelectedTableForQr(table)}
-                            className={`p-4 rounded-xl border transition-all cursor-pointer text-left space-y-2 relative flex flex-col justify-between ${isSelected
+                            className={`p-4 rounded-xl border transition-all cursor-pointer text-left space-y-2 relative flex flex-col justify-between ${
+                              isSelected
                                 ? "border-[#d4af37] bg-amber-50/20 shadow-sm"
                                 : "border-stone-200 hover:border-stone-300 bg-stone-50/20"
-                              }`}
+                            }`}
                           >
                             <div>
                               <div className="flex items-center justify-between">
-                                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full border ${table.status === "Available"
+                                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full border ${
+                                  table.status === "Available"
                                     ? "bg-green-50 text-green-700 border-green-100"
                                     : table.status === "Occupied"
-                                      ? "bg-amber-50 text-amber-700 border-amber-100"
-                                      : "bg-stone-50 text-stone-500 border-stone-200"
-                                  }`}>
+                                    ? "bg-amber-50 text-amber-700 border-amber-100"
+                                    : "bg-stone-50 text-stone-500 border-stone-200"
+                                }`}>
                                   {table.status}
                                 </span>
                                 <span className="text-[9px] font-mono text-stone-400">
@@ -1804,11 +1970,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
                           return (
                             <div className="w-full flex flex-col items-center gap-4">
-
+                              
                               {/* Decorative Table Stand Mockup Frame */}
                               <div className="bg-[#FAF9F5] border-4 border-stone-900 rounded-3xl p-5 w-full max-w-[280px] shadow-lg flex flex-col items-center space-y-4 relative">
                                 <span className="absolute top-3 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-stone-900 rounded-full"></span>
-
+                                
                                 <div className="text-stone-900 font-serif font-extrabold uppercase text-xs tracking-wider border-b border-stone-200 pb-1.5 w-full text-center">
                                   Sagar Ratna Vegetarian
                                 </div>
@@ -2021,7 +2187,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         {selectedOrderDetails && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }} onClick={() => setSelectedOrderDetails(null)} className="fixed inset-0 bg-[#0c0a09]/40 z-40 backdrop-blur-xs" />
-
+            
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-4 max-w-lg mx-auto my-auto h-fit bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 z-50 shadow-2xl overflow-y-auto max-h-[85vh]">
               <div className="flex justify-between items-start border-b border-stone-200 pb-4 mb-4">
                 <div>
@@ -2032,7 +2198,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
 
               <div className="space-y-4 font-sans text-xs">
-
+                
                 {/* Customer specs */}
                 <div className="bg-[#FAF6F0] p-4 rounded-xl border border-stone-200/80 space-y-1 text-stone-600">
                   <p className="text-stone-900 font-bold text-sm mb-1.5">{selectedOrderDetails.customerName}</p>
@@ -2122,9 +2288,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         {showBillPrint && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }} onClick={() => setShowBillPrint(null)} className="fixed inset-0 bg-[#0c0a09]/40 z-40 backdrop-blur-xs" />
-
+            
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-y-12 max-w-sm mx-auto h-fit bg-white text-black p-6 z-50 shadow-2xl overflow-y-auto rounded-xl border border-stone-200">
-
+              
               {/* Receipt Body */}
               <div className="font-mono text-xs space-y-4 select-text">
                 <div className="text-center space-y-1">
@@ -2203,20 +2369,22 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <button
                     type="button"
                     onClick={() => setSelectedPaperWidth("80mm")}
-                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${selectedPaperWidth === "80mm"
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      selectedPaperWidth === "80mm"
                         ? "bg-[#C67C4E] text-white shadow-xs"
                         : "bg-white text-stone-600 hover:bg-stone-100 border border-stone-200"
-                      }`}
+                    }`}
                   >
                     80mm (Standard)
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedPaperWidth("58mm")}
-                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${selectedPaperWidth === "58mm"
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      selectedPaperWidth === "58mm"
                         ? "bg-[#C67C4E] text-white shadow-xs"
                         : "bg-white text-stone-600 hover:bg-stone-100 border border-stone-200"
-                      }`}
+                    }`}
                   >
                     58mm (Compact)
                   </button>
@@ -2251,9 +2419,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         {showMenuModal && editingMenuItem && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }} onClick={() => setShowMenuModal(false)} className="fixed inset-0 bg-[#0c0a09]/45 z-40 backdrop-blur-xs" />
-
+            
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-4 max-w-lg mx-auto my-auto h-fit bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 z-50 shadow-2xl overflow-y-auto max-h-[85vh]">
-
+              
               <div className="flex justify-between items-start border-b border-stone-200 pb-4 mb-4 select-none">
                 <div>
                   <h3 className="text-base font-serif font-bold text-stone-900 uppercase tracking-wider">
@@ -2265,7 +2433,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
 
               <form onSubmit={handleSaveMenuItem} className="space-y-4 text-xs font-sans text-stone-700">
-
+                
                 <div className="space-y-1">
                   <label className="text-[10px] font-sans font-bold text-stone-400 uppercase tracking-widest block">DISH NAME</label>
                   <input
@@ -2288,7 +2456,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       className="w-full bg-[#FAF6F0]/65 border border-stone-200 px-4 py-2 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] text-stone-900 font-sans"
                     />
                   </div>
-
+                  
                   <div className="space-y-1">
                     <label className="text-[10px] font-sans font-bold text-[#C67C4E] uppercase tracking-widest block">CATALOG CATEGORY</label>
                     <select
@@ -2321,7 +2489,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       className="w-full bg-[#FAF6F0]/65 border border-stone-200 px-4 py-2 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] text-stone-900 font-sans font-semibold"
                     />
                   </div>
-
+                  
                   <div className="space-y-1">
                     <label className="text-[10px] font-sans font-bold text-stone-400 uppercase tracking-widest block font-sans">DISH IMAGE URL</label>
                     <input
@@ -2355,7 +2523,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     />
                     Pure Vegetarian Item
                   </label>
-
+                  
                   <label className="flex items-center gap-2.5 text-xs text-stone-600 cursor-pointer font-sans font-semibold">
                     <input
                       type="checkbox"
@@ -2365,7 +2533,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     />
                     Mark Bestseller
                   </label>
-
+ 
                   <label className="flex items-center gap-2.5 text-xs text-stone-600 cursor-pointer font-sans font-semibold">
                     <input
                       type="checkbox"
@@ -2405,9 +2573,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         {showCouponModal && editingCoupon && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }} onClick={() => setShowCouponModal(false)} className="fixed inset-0 bg-[#0c0a09]/45 z-40 backdrop-blur-xs" />
-
+            
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-4 max-w-sm mx-auto my-auto h-fit bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 z-50 shadow-2xl">
-
+              
               <div className="flex justify-between items-start border-b border-stone-200 pb-4 mb-4 select-none">
                 <div>
                   <h3 className="text-base font-serif font-bold text-stone-900 uppercase tracking-wider">Configure Coupon Promo</h3>
@@ -2417,7 +2585,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
 
               <form onSubmit={handleSaveCoupon} className="space-y-4 text-xs font-sans text-stone-700">
-
+                
                 <div className="space-y-1">
                   <label className="text-[10px] font-sans font-bold text-stone-400 uppercase tracking-widest block">COUPON CODE (UPPERCASE)</label>
                   <input
@@ -2442,7 +2610,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <option value="fixed">Fixed Sum Off</option>
                     </select>
                   </div>
-
+                  
                   <div className="space-y-1">
                     <label className="text-[10px] font-sans font-bold text-stone-450 uppercase tracking-widest block font-sans">REWARD VALUE</label>
                     <input
@@ -2466,7 +2634,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       className="w-full bg-[#FAF6F0]/65 border border-stone-200 px-4 py-2 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] text-stone-900 font-mono font-bold"
                     />
                   </div>
-
+                  
                   <div className="space-y-1">
                     <label className="text-[10px] font-sans font-bold text-stone-400 uppercase tracking-widest block font-sans font-bold">MIN AMOUNT VALUE (₹)</label>
                     <input
@@ -2516,9 +2684,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         {showRestockModal && selectedInventoryItem && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }} onClick={() => setShowRestockModal(false)} className="fixed inset-0 bg-[#0c0a09]/45 z-40 backdrop-blur-xs" />
-
+            
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-4 max-w-sm mx-auto my-auto h-fit bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 z-50 shadow-2xl">
-
+              
               <div className="flex justify-between items-start border-b border-stone-200 pb-4 mb-4 select-none">
                 <div>
                   <h3 className="text-base font-serif font-bold text-stone-900 uppercase tracking-wider">Refill Inventory Allocation</h3>
@@ -2528,7 +2696,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
 
               <form onSubmit={handleRestockSave} className="space-y-4 text-xs font-sans text-stone-700">
-
+                
                 <div className="bg-[#FAF6F0] p-4 rounded-xl border border-stone-200 text-center font-sans">
                   <p className="text-stone-400 uppercase text-[10px] font-bold tracking-widest font-sans">CURRENT STOCK POSITION</p>
                   <p className="text-sm font-bold text-stone-900 mt-1">{selectedInventoryItem.name}</p>
@@ -2594,7 +2762,7 @@ function SidebarBtn({ icon, label, active, count, alertColor = "bg-red-500", onC
         {React.cloneElement(icon as React.ReactElement, { className: "w-4 h-4" })}
         <span>{label}</span>
       </div>
-
+      
       {count !== undefined && count > 0 && (
         <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full text-white font-black animate-pulse ${alertColor}`}>
           {count}
@@ -2620,10 +2788,11 @@ function MobileGridBtn({ id, label, active, icon, count, alertColor = "bg-red-50
     <button
       type="button"
       onClick={onClick}
-      className={`px-2.5 py-1.8 border rounded-lg text-[9px] font-sans font-bold uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${active
-          ? "bg-[#aa7c11] text-white border-[#aa7c11] shadow-[0_2px_8px_rgba(170,124,17,0.2)]"
+      className={`px-2.5 py-1.8 border rounded-lg text-[9px] font-sans font-bold uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
+        active 
+          ? "bg-[#aa7c11] text-white border-[#aa7c11] shadow-[0_2px_8px_rgba(170,124,17,0.2)]" 
           : "bg-stone-50 text-stone-600 border-stone-200 hover:border-stone-300 hover:bg-stone-100"
-        }`}
+      }`}
     >
       <div className="flex items-center gap-1.5 truncate">
         {React.cloneElement(icon as React.ReactElement, { className: "w-3 h-3 flex-shrink-0" })}

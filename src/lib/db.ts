@@ -698,6 +698,30 @@ export class LocalDB {
     return headers;
   }
 
+  static async apiRenewCredentials(currentPassword: string, newEmail: string, newPassword: string): Promise<{ success: boolean; message: string; email?: string; passwordHash?: string }> {
+    try {
+      const response = await fetch("/api/admin/renew-credentials", {
+        method: "POST",
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ currentPassword, newEmail, newPassword })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to renew credentials");
+      }
+      if (data.email && data.passwordHash) {
+        localStorage.setItem("sr_admin_custom_credentials", JSON.stringify({
+          email: data.email,
+          passwordHash: data.passwordHash
+        }));
+      }
+      return data;
+    } catch (err: any) {
+      console.error("[Renew Credentials error]", err);
+      throw err;
+    }
+  }
+
   static async fetchOrders(): Promise<Order[]> {
     console.log("[Supabase API Request] Loading orders list...");
     try {
