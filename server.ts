@@ -320,7 +320,27 @@ export async function startServer(port: number = 3000) {
   // REST API: AUTHENTICATION
   app.post("/api/admin/login", (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, pin } = req.body;
+
+      const db = readDb();
+      const customCredentials = db.credentials || {};
+      const expectedPin = customCredentials.pin || "1234";
+
+      // PIN-based login handler
+      if (pin !== undefined) {
+        if (typeof pin !== "string" && typeof pin !== "number") {
+          return res.status(400).json({ error: "PIN must be a string or number parameter." });
+        }
+        const pinStr = String(pin).trim();
+        if (pinStr === expectedPin) {
+          const token = signToken({ sub: "sagar_ratna_admin_id", role: "Owner", email: "admin@sagarratna.com" });
+          return res.json({ token });
+        } else {
+          return res.status(401).json({ error: "Invalid administrative PIN code. Access denied." });
+        }
+      }
+
+      // Traditional Email/Password login handler
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password are required parameters." });
       }
@@ -328,8 +348,6 @@ export async function startServer(port: number = 3000) {
         return res.status(400).json({ error: "Email and password must be string parameters." });
       }
 
-      const db = readDb();
-      const customCredentials = db.credentials || {};
       const expectedEmail = (customCredentials.email || process.env.ADMIN_EMAIL || "aaryanrajputofficial@gmail.com").toLowerCase();
       const expectedHash = customCredentials.passwordHash || process.env.ADMIN_PASSWORD_HASH || "6f2cb9dd8f4b65e24e1c3f3fa5bc57982349237f11abceacd45bbcb74d621c25";
 
@@ -405,26 +423,54 @@ export async function startServer(port: number = 3000) {
   // REST API: RESET CREDENTIALS (Secure sandbox bypass)
   app.post("/api/admin/reset-credentials", (req, res) => {
     try {
-      const { email, password, securityToken } = req.body;
-      if (!email || !password || !securityToken) {
-        return res.status(400).json({ error: "All parameters (email, password, securityToken) are required." });
+      const { email, password, pin, securityToken } = req.body;
+      if (!securityToken) {
+        return res.status(400).json({ error: "securityToken is required." });
       }
 
       if (securityToken !== "SAGAR_SANDBOX_RESET") {
         return res.status(403).json({ error: "Invalid security verification token." });
       }
 
+      const db = readDb();
+      if (!db.credentials) {
+        db.credentials = {};
+      }
+
+      // If resetting PIN specifically
+      if (pin !== undefined) {
+        const pinStr = String(pin).trim();
+        if (pinStr.length < 4) {
+          return res.status(400).json({ error: "New PIN must be at least 4 digits in length." });
+        }
+        db.credentials.pin = pinStr;
+
+        db.auditLogs.unshift({
+          id: `log-reset-pin-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          user: "System (Reset Gateway)",
+          action: "PIN Reset",
+          details: `PIN reset via secure gateway.`,
+          ipAddress: "127.0.0.1"
+        });
+
+        writeDb(db);
+        return res.json({ success: true, message: "Administrative PIN updated successfully." });
+      }
+
+      // Traditional email/password reset
+      if (!email || !password) {
+        return res.status(400).json({ error: "All parameters (email, password) are required." });
+      }
+
       if (password.length < 6) {
         return res.status(400).json({ error: "New password key must be at least 6 characters in length." });
       }
 
-      const db = readDb();
       const newPasswordHash = crypto.createHash("sha256").update(password).digest("hex");
 
-      db.credentials = {
-        email: email.toLowerCase().trim(),
-        passwordHash: newPasswordHash
-      };
+      db.credentials.email = email.toLowerCase().trim();
+      db.credentials.passwordHash = newPasswordHash;
 
       db.auditLogs.unshift({
         id: `log-reset-${Date.now()}`,

@@ -37,7 +37,7 @@ export default function App() {
   );
   
   const [adminToken, setAdminToken] = useState<string | null>(
-    localStorage.getItem("sr_admin_jwt") || sessionStorage.getItem("sr_admin_jwt") || "bypass-token"
+    localStorage.getItem("sr_admin_jwt") || sessionStorage.getItem("sr_admin_jwt")
   );
 
   // Dynamic menu items read directly from LocalDB
@@ -208,7 +208,10 @@ export default function App() {
 
   // If view is administrative
   if (view === "admin") {
-    return <AdminDashboard onLogout={handleAdminLogout} />;
+    if (adminToken) {
+      return <AdminDashboard onLogout={handleAdminLogout} />;
+    }
+    return <AdminLogin onLoginSuccess={handleAdminLoginSuccess} />;
   }
 
   if (isMobile) {
