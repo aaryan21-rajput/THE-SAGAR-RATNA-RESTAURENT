@@ -592,7 +592,16 @@ export class LocalDB {
 
   static addOrder(order: Omit<Order, "id" | "createdAt">): Order {
     const orders = this.getOrders();
-    const newId = `SR-${1000 + orders.length + Math.floor(Math.random() * 10)}`;
+    let newId = "";
+    let offset = 0;
+    while (true) {
+      const candidate = `SR-${1000 + orders.length + Math.floor(Math.random() * 10000) + offset}`;
+      if (!orders.some((o) => o.id === candidate)) {
+        newId = candidate;
+        break;
+      }
+      offset++;
+    }
     const fullOrder: Order = {
       ...order,
       id: newId,
@@ -974,7 +983,16 @@ export class LocalDB {
     }
 
     const ordersList = this.getOrders();
-    const newId = `SR-${1000 + ordersList.length + Math.floor(Math.random() * 100)}`;
+    let newId = "";
+    let offset = 0;
+    while (true) {
+      const candidate = `SR-${1000 + ordersList.length + Math.floor(Math.random() * 10000) + offset}`;
+      if (!ordersList.some((o) => o.id === candidate)) {
+        newId = candidate;
+        break;
+      }
+      offset++;
+    }
     const kotNumber = this.getNextKOTNumber();
 
     const fullOrder: Order = {

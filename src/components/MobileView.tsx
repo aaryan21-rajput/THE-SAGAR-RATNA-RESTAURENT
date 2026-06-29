@@ -1604,7 +1604,7 @@ export default function MobileView({
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                  {pastOrdersMobile.slice(0, 5).map((order) => {
+                  {pastOrdersMobile.slice(0, 5).map((order, idx) => {
                     const formattedDate = new Date(order.createdAt).toLocaleDateString("en-IN", {
                       day: "numeric",
                       month: "short",
@@ -1618,7 +1618,7 @@ export default function MobileView({
                       "bg-amber-50 text-amber-700 border-amber-200";
 
                     return (
-                      <div key={order.id} className="bg-white border border-stone-200 p-4 rounded-2xl space-y-3 shadow-sm hover:border-stone-300 transition-all">
+                      <div key={`${order.id}-${order.createdAt || idx}`} className="bg-white border border-stone-200 p-4 rounded-2xl space-y-3 shadow-sm hover:border-stone-300 transition-all">
                         <div className="flex items-center justify-between">
                           <div>
                             <span className="text-[10px] font-mono font-bold text-stone-900">{order.id}</span>

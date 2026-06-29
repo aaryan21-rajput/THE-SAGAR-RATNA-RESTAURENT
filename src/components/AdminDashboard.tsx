@@ -1135,8 +1135,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             </td>
                           </tr>
                         ) : (
-                          filteredOrders.map((o) => (
-                            <tr key={o.id} className="hover:bg-stone-50/40 transition-colors">
+                          filteredOrders.map((o, idx) => (
+                            <tr key={`${o.id}-${o.createdAt || idx}`} className="hover:bg-stone-50/40 transition-colors">
                               <td className="p-3.5 font-bold text-stone-900 text-xs font-mono">{o.id}</td>
                               <td className="p-3.5 space-y-0.5">
                                 <div className="font-semibold text-stone-900 font-sans">{o.customerName}</div>
